@@ -1,11 +1,14 @@
 # server.R - Server logic for CCC Dashboard
 # Uses ONLY wrapper functions - never accesses data directly
+#
+# Note: This function expects rdm_data to be passed as a parameter
 
-server <- function(input, output, session) {
+create_server <- function(initial_data) {
+  function(input, output, session) {
 
-  # Reactive values
-  app_data <- reactiveVal(rdm_data)
-  selected_resident_id <- reactiveVal(NULL)
+    # Reactive values
+    app_data <- reactiveVal(initial_data)
+    selected_resident_id <- reactiveVal(NULL)
 
   # ===========================================================================
   # INITIALIZATION
@@ -349,4 +352,6 @@ server <- function(input, output, session) {
   output$admin_data_entry_panel <- renderUI({
     p(em("Admin data entry interface will be added here"))
   })
-}
+
+  }  # End of inner server function
+}  # End of create_server function

@@ -15,11 +15,14 @@ source("R/helpers.R")     # Pure helper functions
 source("R/wrappers.R")    # Data access wrappers
 source("R/ui.R")          # UI definition
 
-# Load data once at app startup (before server is defined, so it's in scope)
+# Load data once at app startup
 rdm_data <- load_ccc_data()
 
-# Source server last (so rdm_data is available)
+# Source server (defines create_server function)
 source("R/server.R")      # Server logic
+
+# Create server function with data
+server <- create_server(rdm_data)
 
 # Run the app
 shinyApp(ui = ui, server = server)
