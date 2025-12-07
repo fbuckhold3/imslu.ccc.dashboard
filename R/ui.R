@@ -61,7 +61,7 @@ ui <- fluidPage(
           title = "Resident Review",
           value = "review_tab",
           br(),
-          DTOutput("resident_table"),
+          DT::DTOutput("resident_table"),
           br(),
           uiOutput("review_stats")
         ),

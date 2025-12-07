@@ -49,7 +49,7 @@ server <- function(input, output, session) {
   })
 
   # Resident review table
-  output$resident_table <- renderDT({
+  output$resident_table <- DT::renderDT({
     req(input$academic_year, input$period)
 
     review_table <- get_ccc_review_table(
@@ -58,7 +58,7 @@ server <- function(input, output, session) {
       as.integer(input$period)
     )
 
-    datatable(
+    DT::datatable(
       review_table,
       selection = "single",
       rownames = FALSE,
@@ -67,9 +67,9 @@ server <- function(input, output, session) {
         dom = 'ft'
       )
     ) %>%
-      formatStyle(
+      DT::formatStyle(
         'completed',
-        backgroundColor = styleEqual(
+        backgroundColor = DT::styleEqual(
           c(TRUE, FALSE),
           c('#d4edda', '#f8d7da')
         )
