@@ -12,6 +12,19 @@ load_app_data <- function() {
   # - EVAL_TOKEN (optional)
   # - FAC_TOKEN (optional)
 
+  # Check for required environment variables
+  required_vars <- c("ACCESS_CODE", "RDM_TOKEN")
+  missing_vars <- required_vars[!nzchar(Sys.getenv(required_vars))]
+
+  if (length(missing_vars) > 0) {
+    stop(
+      "Missing required environment variables: ",
+      paste(missing_vars, collapse = ", "),
+      "\n\nPlease create a .Renviron file with these variables.",
+      "\nSee .Renviron.example for template."
+    )
+  }
+
   tryCatch({
     data <- gmed::load_rdm_complete()
 
@@ -33,13 +46,8 @@ load_app_data <- function() {
     return(data)
 
   }, error = function(e) {
-    stop("Failed to load data from REDCap: ", e$message)
+    stop("Failed to load data from REDCap: ", e$message, call. = FALSE)
   })
 }
 
-# Load data once at app startup
-data <- load_app_data()
-
-# Calculate current period for default selection
-current_academic_year <- calculate_academic_year()
-current_period <- calculate_current_period()
+# Note: Data loading and period calculations are done in app.R after all files are sourced

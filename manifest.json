@@ -28,6 +28,10 @@
       "Source": "CRAN",
       "Repository": "https://cran.rstudio.com/"
     },
+    "purrr": {
+      "Source": "CRAN",
+      "Repository": "https://cran.rstudio.com/"
+    },
     "gmed": {
       "Source": "github",
       "RemoteUsername": "fbuckhold3",
