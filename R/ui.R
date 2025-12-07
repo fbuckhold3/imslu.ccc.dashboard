@@ -9,102 +9,143 @@ ui <- fluidPage(
   # Title
   titlePanel("SLU Internal Medicine - Clinical Competency Committee Dashboard"),
 
-  # Sidebar for filters
-  sidebarLayout(
-    sidebarPanel(
-      width = 3,
+  # Main tab panel for three modes
+  tabsetPanel(
+    id = "main_mode",
+    type = "tabs",
 
-      # Academic year selector
-      selectInput(
-        inputId = "academic_year",
-        label = "Academic Year:",
-        choices = NULL,  # Will be populated in server
-        selected = NULL
-      ),
+    # ===========================================================================
+    # MODE 1: CCC SEMI-ANNUAL REVIEW
+    # ===========================================================================
+    tabPanel(
+      title = "CCC Semi-Annual Review",
+      value = "ccc_semiannual",
 
-      # Period selector
-      selectInput(
-        inputId = "period",
-        label = "Evaluation Period:",
-        choices = c(
-          "Period 1 (Jul-Aug)" = 1,
-          "Period 2 (Sep-Oct)" = 2,
-          "Period 3 (Nov-Dec)" = 3,
-          "Period 4 (Jan-Feb)" = 4,
-          "Period 5 (Mar-Apr)" = 5,
-          "Period 6 (May-Jun)" = 6
+      br(),
+
+      fluidRow(
+        column(
+          width = 3,
+          wellPanel(
+            h4("Review Period"),
+            selectInput(
+              inputId = "review_period",
+              label = "Select Review Period:",
+              choices = c("Mid Year", "End Year"),
+              selected = get_current_ccc_period()
+            ),
+            hr(),
+            actionButton(
+              inputId = "refresh_data",
+              label = "Refresh Data",
+              icon = icon("sync"),
+              class = "btn-primary"
+            )
+          ),
+
+          wellPanel(
+            h4("Review Progress"),
+            uiOutput("review_stats")
+          )
         ),
-        selected = NULL  # Will be set to current period in server
-      ),
 
-      hr(),
+        column(
+          width = 9,
+          h3("Residents for Review"),
+          DT::DTOutput("resident_review_table"),
+          br(),
+          hr(),
 
-      # Refresh data button
-      actionButton(
-        inputId = "refresh_data",
-        label = "Refresh Data",
-        icon = icon("sync")
+          # Resident detail panel (shown when resident selected)
+          uiOutput("resident_detail_panel")
+        )
       )
     ),
 
-    # Main panel
-    mainPanel(
-      width = 9,
+    # ===========================================================================
+    # MODE 2: AD HOC DISCUSSION
+    # ===========================================================================
+    tabPanel(
+      title = "Ad Hoc Discussion",
+      value = "ad_hoc",
 
-      # Tab panel for different views
-      tabsetPanel(
-        id = "main_tabs",
-        type = "tabs",
+      br(),
 
-        # Tab 1: Resident Review Table
-        tabPanel(
-          title = "Resident Review",
-          value = "review_tab",
-          br(),
-          DT::DTOutput("resident_table"),
-          br(),
-          uiOutput("review_stats")
+      fluidRow(
+        column(
+          width = 3,
+          wellPanel(
+            h4("Select Resident"),
+            selectizeInput(
+              inputId = "adhoc_resident",
+              label = "Resident:",
+              choices = NULL,  # Populated in server
+              selected = NULL,
+              options = list(
+                placeholder = "Type to search...",
+                maxOptions = 100
+              )
+            ),
+            hr(),
+            selectInput(
+              inputId = "adhoc_period",
+              label = "Discussion Period:",
+              choices = PERIOD_NAMES,
+              selected = NULL
+            )
+          )
         ),
 
-        # Tab 2: Individual Resident View
-        tabPanel(
-          title = "Resident Details",
-          value = "details_tab",
-          br(),
-          fluidRow(
-            column(
-              width = 12,
-              selectInput(
-                inputId = "selected_resident",
-                label = "Select Resident:",
-                choices = NULL,  # Will be populated in server
-                selected = NULL
-              )
-            )
-          ),
-          hr(),
-          h4("Milestone Evaluations"),
-          br(),
-          fluidRow(
-            column(
-              width = 4,
-              h5("ACGME Milestones (Previous Period)"),
-              plotOutput("plot_acgme")
+        column(
+          width = 9,
+          uiOutput("adhoc_review_panel")
+        )
+      )
+    ),
+
+    # ===========================================================================
+    # MODE 3: ADMIN PAGE
+    # ===========================================================================
+    tabPanel(
+      title = "Admin",
+      value = "admin",
+
+      br(),
+
+      fluidRow(
+        column(
+          width = 3,
+          wellPanel(
+            h4("Admin Functions"),
+            selectInput(
+              inputId = "admin_view",
+              label = "View:",
+              choices = c(
+                "All Residents" = "all",
+                "Mid Year Reviews" = "mid",
+                "End Year Reviews" = "end"
+              ),
+              selected = "all"
             ),
-            column(
-              width = 4,
-              h5("Program Milestones (Current Period)"),
-              plotOutput("plot_program")
-            ),
-            column(
-              width = 4,
-              h5("Self-Evaluation (Current Period)"),
-              plotOutput("plot_self")
+            hr(),
+            actionButton(
+              inputId = "admin_add_data",
+              label = "Enter Data",
+              icon = icon("plus"),
+              class = "btn-success"
             )
-          ),
+          )
+        ),
+
+        column(
+          width = 9,
+          h3("Resident Data"),
+          DT::DTOutput("admin_resident_table"),
+          br(),
           hr(),
-          h4("CCC Review Form"),
-          uiOutput("ccc_form")
+
+          # Data entry panel (shown when entering data)
+          uiOutput("admin_data_entry_panel")
         )
       )
     )

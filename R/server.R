@@ -4,40 +4,33 @@
 server <- function(input, output, session) {
 
   # Reactive values
-  app_data <- reactiveVal(data)
+  app_data <- reactiveVal(rdm_data)
+  selected_resident_id <- reactiveVal(NULL)
 
-  # Initialize UI elements with default values
+  # ===========================================================================
+  # INITIALIZATION
+  # ===========================================================================
+
+  # Populate resident selectors
   observe({
-    # Set academic year choices
-    # TODO: Generate list of academic years from data
-    updateSelectInput(
-      session,
-      "academic_year",
-      choices = current_academic_year,
-      selected = current_academic_year
-    )
-
-    # Set current period as default
-    updateSelectInput(
-      session,
-      "period",
-      selected = current_period
-    )
-
-    # Populate resident list
     residents <- get_resident_list(app_data())
-    updateSelectInput(
-      session,
-      "selected_resident",
-      choices = residents,
-      selected = if (length(residents) > 0) residents[1] else NULL
-    )
+
+    if (nrow(residents) > 0) {
+      # Ad hoc resident selector
+      choices <- setNames(residents$record_id, residents$full_name)
+      updateSelectizeInput(
+        session,
+        "adhoc_resident",
+        choices = choices,
+        server = TRUE
+      )
+    }
   })
 
   # Handle data refresh
   observeEvent(input$refresh_data, {
     tryCatch({
-      new_data <- load_app_data()
+      new_data <- load_ccc_data()
       app_data(new_data)
       showNotification("Data refreshed successfully", type = "message")
     }, error = function(e) {
@@ -48,18 +41,42 @@ server <- function(input, output, session) {
     })
   })
 
+  # ===========================================================================
+  # MODE 1: CCC SEMI-ANNUAL REVIEW
+  # ===========================================================================
+
   # Resident review table
-  output$resident_table <- DT::renderDT({
-    req(input$academic_year, input$period)
+  output$resident_review_table <- DT::renderDT({
+    req(input$review_period)
 
     review_table <- get_ccc_review_table(
       app_data(),
-      input$academic_year,
-      as.integer(input$period)
+      input$review_period
     )
 
+    if (nrow(review_table) == 0) {
+      return(data.frame(
+        Resident = character(0),
+        Level = character(0),
+        Period = character(0),
+        Completed = character(0)
+      ))
+    }
+
+    # Format for display
+    display_table <- review_table %>%
+      select(
+        Resident = resident,
+        Level = level,
+        Period = expected_period,
+        Completed = ccc_complete
+      ) %>%
+      mutate(
+        Completed = ifelse(Completed, "✓ Yes", "✗ No")
+      )
+
     DT::datatable(
-      review_table,
+      display_table,
       selection = "single",
       rownames = FALSE,
       options = list(
@@ -68,9 +85,9 @@ server <- function(input, output, session) {
       )
     ) %>%
       DT::formatStyle(
-        'completed',
+        'Completed',
         backgroundColor = DT::styleEqual(
-          c(TRUE, FALSE),
+          c("✓ Yes", "✗ No"),
           c('#d4edda', '#f8d7da')
         )
       )
@@ -78,20 +95,18 @@ server <- function(input, output, session) {
 
   # Review statistics
   output$review_stats <- renderUI({
-    req(input$academic_year, input$period)
+    req(input$review_period)
 
     review_table <- get_ccc_review_table(
       app_data(),
-      input$academic_year,
-      as.integer(input$period)
+      input$review_period
     )
 
     total <- nrow(review_table)
-    completed <- sum(review_table$completed, na.rm = TRUE)
+    completed <- sum(review_table$ccc_complete, na.rm = TRUE)
     remaining <- total - completed
 
     tagList(
-      h4("Review Progress"),
       p(
         strong("Total Residents: "), total, br(),
         strong("Completed: "), completed, br(),
@@ -100,98 +115,238 @@ server <- function(input, output, session) {
     )
   })
 
-  # ACGME milestones plot (previous period)
-  output$plot_acgme <- renderPlot({
-    req(input$selected_resident, input$period)
-
-    milestones <- get_resident_acgme_milestones(
-      app_data(),
-      input$selected_resident,
-      as.integer(input$period)
-    )
-
-    if (nrow(milestones) == 0) {
-      plot.new()
-      text(0.5, 0.5, "No ACGME data available", cex = 1.2)
-      return()
-    }
-
-    # TODO: Create milestone visualization
-    plot.new()
-    text(0.5, 0.5, "ACGME Milestone Plot", cex = 1.2)
-  })
-
-  # Program milestones plot (current period)
-  output$plot_program <- renderPlot({
-    req(input$selected_resident, input$period)
-
-    milestones <- get_resident_program_milestones(
-      app_data(),
-      input$selected_resident,
-      as.integer(input$period)
-    )
-
-    if (nrow(milestones) == 0) {
-      plot.new()
-      text(0.5, 0.5, "No program data available", cex = 1.2)
-      return()
-    }
-
-    # TODO: Create milestone visualization
-    plot.new()
-    text(0.5, 0.5, "Program Milestone Plot", cex = 1.2)
-  })
-
-  # Self-evaluation milestones plot (current period)
-  output$plot_self <- renderPlot({
-    req(input$selected_resident, input$period)
-
-    milestones <- get_resident_self_milestones(
-      app_data(),
-      input$selected_resident,
-      as.integer(input$period)
-    )
-
-    if (nrow(milestones) == 0) {
-      plot.new()
-      text(0.5, 0.5, "No self-evaluation data available", cex = 1.2)
-      return()
-    }
-
-    # TODO: Create milestone visualization
-    plot.new()
-    text(0.5, 0.5, "Self-Evaluation Milestone Plot", cex = 1.2)
-  })
-
-  # CCC review form
-  output$ccc_form <- renderUI({
-    req(input$selected_resident, input$period)
-
-    # TODO: Build CCC review form
-    tagList(
-      p("CCC review form will be displayed here"),
-      actionButton("submit_review", "Submit Review", class = "btn-primary")
-    )
-  })
-
-  # Handle table row selection - switch to details tab
-  observeEvent(input$resident_table_rows_selected, {
-    req(input$resident_table_rows_selected)
+  # Handle table row selection - show resident details
+  observeEvent(input$resident_review_table_rows_selected, {
+    req(input$resident_review_table_rows_selected)
 
     review_table <- get_ccc_review_table(
       app_data(),
-      input$academic_year,
-      as.integer(input$period)
+      input$review_period
     )
 
-    selected_resident <- review_table$resident[input$resident_table_rows_selected]
+    selected_rid <- review_table$record_id[input$resident_review_table_rows_selected]
+    selected_resident_id(selected_rid)
+  })
 
-    updateSelectInput(
-      session,
-      "selected_resident",
-      selected = selected_resident
+  # Resident detail panel
+  output$resident_detail_panel <- renderUI({
+    rid <- selected_resident_id()
+
+    if (is.null(rid)) {
+      return(
+        div(
+          class = "alert alert-info",
+          "Select a resident from the table above to view details and conduct CCC review"
+        )
+      )
+    }
+
+    # Get resident info
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    # Get milestones
+    milestones <- get_resident_milestones(
+      app_data(),
+      rid,
+      resident_info$current_period
     )
 
-    updateTabsetPanel(session, "main_tabs", selected = "details_tab")
+    # Get existing CCC review
+    ccc_review <- get_resident_ccc_review(
+      app_data(),
+      rid,
+      resident_info$current_period
+    )
+
+    tagList(
+      h3(paste("CCC Review:", resident_info$full_name)),
+      p(strong("Level: "), resident_info$current_period),
+      hr(),
+
+      h4("Milestone Data"),
+      fluidRow(
+        column(
+          width = 4,
+          wellPanel(
+            h5("ACGME Milestones (Previous Period)"),
+            if (nrow(milestones$acgme) > 0) {
+              p("Data available")
+            } else {
+              p(em("No data"))
+            }
+          )
+        ),
+        column(
+          width = 4,
+          wellPanel(
+            h5("Program Milestones (Current Period)"),
+            if (nrow(milestones$program) > 0) {
+              p("Data available")
+            } else {
+              p(em("No data"))
+            }
+          )
+        ),
+        column(
+          width = 4,
+          wellPanel(
+            h5("Self-Evaluation (Current Period)"),
+            if (nrow(milestones$self) > 0) {
+              p("Data available")
+            } else {
+              p(em("No data"))
+            }
+          )
+        )
+      ),
+      hr(),
+
+      h4("CCC Review Form"),
+      p(em("CCC review form interface will be added here")),
+      actionButton(
+        "submit_ccc_review",
+        "Submit CCC Review",
+        class = "btn-primary"
+      )
+    )
+  })
+
+  # ===========================================================================
+  # MODE 2: AD HOC DISCUSSION
+  # ===========================================================================
+
+  output$adhoc_review_panel <- renderUI({
+    req(input$adhoc_resident, input$adhoc_period)
+
+    # Get resident info
+    resident_info <- app_data()$residents %>%
+      filter(record_id == input$adhoc_resident) %>%
+      slice(1)
+
+    if (nrow(resident_info) == 0) {
+      return(p("Resident not found"))
+    }
+
+    # Get milestones for selected period
+    milestones <- get_resident_milestones(
+      app_data(),
+      input$adhoc_resident,
+      input$adhoc_period
+    )
+
+    tagList(
+      h3(paste("Ad Hoc Discussion:", resident_info$full_name)),
+      p(strong("Discussion Period: "), input$adhoc_period),
+      hr(),
+
+      h4("Available Data"),
+      fluidRow(
+        column(
+          width = 4,
+          wellPanel(
+            h5("Program Milestones"),
+            if (nrow(milestones$program) > 0) {
+              p("✓ Data available")
+            } else {
+              p("✗ No data")
+            }
+          )
+        ),
+        column(
+          width = 4,
+          wellPanel(
+            h5("Self-Evaluation"),
+            if (nrow(milestones$self) > 0) {
+              p("✓ Data available")
+            } else {
+              p("✗ No data")
+            }
+          )
+        ),
+        column(
+          width = 4,
+          wellPanel(
+            h5("ACGME Milestones"),
+            if (nrow(milestones$acgme) > 0) {
+              p("✓ Data available")
+            } else {
+              p("✗ No data")
+            }
+          )
+        )
+      ),
+      hr(),
+
+      h4("Ad Hoc Review Notes"),
+      p(em("Ad hoc review interface will be added here")),
+      textAreaInput(
+        "adhoc_notes",
+        "Discussion Notes:",
+        rows = 5,
+        width = "100%"
+      ),
+      actionButton(
+        "save_adhoc_notes",
+        "Save Notes",
+        class = "btn-primary"
+      )
+    )
+  })
+
+  # ===========================================================================
+  # MODE 3: ADMIN PAGE
+  # ===========================================================================
+
+  # Admin resident table
+  output$admin_resident_table <- DT::renderDT({
+    req(input$admin_view)
+
+    # Get appropriate resident list based on view
+    if (input$admin_view == "all") {
+      residents <- get_resident_list(app_data())
+    } else if (input$admin_view == "mid") {
+      review_table <- get_ccc_review_table(app_data(), "Mid Year")
+      residents <- review_table %>%
+        select(record_id, full_name = resident, current_period = level)
+    } else {
+      review_table <- get_ccc_review_table(app_data(), "End Year")
+      residents <- review_table %>%
+        select(record_id, full_name = resident, current_period = level)
+    }
+
+    if (nrow(residents) == 0) {
+      return(data.frame(
+        Resident = character(0),
+        Type = character(0),
+        `Grad Year` = character(0),
+        Period = character(0),
+        check.names = FALSE
+      ))
+    }
+
+    display_table <- residents %>%
+      select(
+        Resident = full_name,
+        Type = type,
+        `Grad Year` = grad_yr,
+        Period = current_period
+      )
+
+    DT::datatable(
+      display_table,
+      selection = "single",
+      rownames = FALSE,
+      options = list(
+        pageLength = 50,
+        dom = 'ftp'
+      )
+    )
+  })
+
+  # Admin data entry panel
+  output$admin_data_entry_panel <- renderUI({
+    p(em("Admin data entry interface will be added here"))
   })
 }
