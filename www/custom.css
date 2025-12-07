@@ -1,0 +1,56 @@
+/* Custom CSS for SLU CCC Dashboard */
+
+/* Main title styling */
+h2 {
+  color: #003087;  /* SLU Blue */
+  font-weight: bold;
+}
+
+/* Sidebar styling */
+.well {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+}
+
+/* Button styling */
+.btn-primary {
+  background-color: #003087;
+  border-color: #003087;
+}
+
+.btn-primary:hover {
+  background-color: #002366;
+  border-color: #002366;
+}
+
+/* Tab styling */
+.nav-tabs > li > a {
+  color: #003087;
+}
+
+.nav-tabs > li.active > a {
+  color: #003087;
+  font-weight: bold;
+}
+
+/* Table styling */
+.dataTables_wrapper {
+  margin-top: 20px;
+}
+
+/* Stats box styling */
+.stats-box {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  padding: 15px;
+  margin-top: 20px;
+}
+
+/* Plot containers */
+.plot-container {
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  padding: 10px;
+  margin: 10px 0;
+}
