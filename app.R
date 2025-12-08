@@ -4,6 +4,7 @@ library(DT)
 library(purrr)
 library(plotly)
 library(gmed)
+library(REDCapR)
 
 # Ensure pipe operator is available
 if (!exists("%>%")) {

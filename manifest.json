@@ -36,6 +36,10 @@
       "Source": "CRAN",
       "Repository": "https://cran.rstudio.com/"
     },
+    "REDCapR": {
+      "Source": "CRAN",
+      "Repository": "https://cran.rstudio.com/"
+    },
     "gmed": {
       "Source": "github",
       "RemoteUsername": "fbuckhold3",

@@ -174,3 +174,33 @@ get_resident_ccc_review <- function(rdm_data, record_id, period_name) {
     period_name
   )
 }
+
+#' Get Coach Review for Resident and Period
+#'
+#' @param rdm_data List containing all data
+#' @param record_id Resident record ID
+#' @param period_name Period name
+#' @return Data frame with coach review data or empty df
+get_resident_coach_review <- function(rdm_data, record_id, period_name) {
+  get_form_data_for_period(
+    rdm_data$all_forms,
+    "coach_rev",
+    record_id,
+    period_name
+  )
+}
+
+#' Get Second Review for Resident and Period
+#'
+#' @param rdm_data List containing all data
+#' @param record_id Resident record ID
+#' @param period_name Period name
+#' @return Data frame with second review data or empty df
+get_resident_second_review <- function(rdm_data, record_id, period_name) {
+  get_form_data_for_period(
+    rdm_data$all_forms,
+    "second_review",
+    record_id,
+    period_name
+  )
+}

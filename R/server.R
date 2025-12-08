@@ -207,13 +207,224 @@ create_server <- function(initial_data) {
       ),
       hr(),
 
+      h4("Previous Reviews"),
+      fluidRow(
+        column(
+          width = 6,
+          wellPanel(
+            h5("Coach Review"),
+            uiOutput("coach_review_summary")
+          )
+        ),
+        column(
+          width = 6,
+          wellPanel(
+            h5("Second Review"),
+            uiOutput("second_review_summary")
+          )
+        )
+      ),
+      hr(),
+
       h4("CCC Review Form"),
-      p(em("CCC review form interface will be added here")),
-      actionButton(
-        "submit_ccc_review",
-        "Submit CCC Review",
-        class = "btn-primary"
+      p(
+        class = "text-muted",
+        "Complete the following fields based on the committee's discussion and review of the resident's performance."
+      ),
+
+      fluidRow(
+        column(
+          width = 12,
+          textAreaInput(
+            "ccc_discussion_notes",
+            "CCC Discussion Notes:",
+            value = "",
+            rows = 4,
+            width = "100%",
+            placeholder = "Summarize the key points discussed by the committee..."
+          )
+        )
+      ),
+
+      fluidRow(
+        column(
+          width = 6,
+          textAreaInput(
+            "ccc_areas_of_strength",
+            "Areas of Strength:",
+            value = "",
+            rows = 4,
+            width = "100%",
+            placeholder = "Highlight the resident's strengths and positive performance areas..."
+          )
+        ),
+        column(
+          width = 6,
+          textAreaInput(
+            "ccc_areas_of_concern",
+            "Areas of Concern:",
+            value = "",
+            rows = 4,
+            width = "100%",
+            placeholder = "Note any areas requiring improvement or monitoring..."
+          )
+        )
+      ),
+
+      fluidRow(
+        column(
+          width = 12,
+          textAreaInput(
+            "ccc_recommendations",
+            "CCC Recommendations:",
+            value = "",
+            rows = 4,
+            width = "100%",
+            placeholder = "Provide specific recommendations for the resident's continued development..."
+          )
+        )
+      ),
+
+      fluidRow(
+        column(
+          width = 12,
+          textAreaInput(
+            "ccc_action_items",
+            "Action Items / Follow-up:",
+            value = "",
+            rows = 3,
+            width = "100%",
+            placeholder = "List any specific action items or follow-up required..."
+          )
+        )
+      ),
+
+      br(),
+
+      fluidRow(
+        column(
+          width = 12,
+          actionButton(
+            "submit_ccc_review",
+            "Submit CCC Review",
+            class = "btn-primary btn-lg",
+            icon = icon("check")
+          ),
+          span(
+            class = "text-muted",
+            style = "margin-left: 15px;",
+            "This will save the review to REDCap"
+          )
+        )
       )
+    )
+  })
+
+  # Coach Review Summary
+  output$coach_review_summary <- renderUI({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    coach_data <- get_resident_coach_review(
+      app_data(),
+      rid,
+      resident_info$current_period
+    )
+
+    if (nrow(coach_data) == 0) {
+      return(p(
+        class = "text-muted",
+        icon("info-circle"),
+        " No coach review available for this period"
+      ))
+    }
+
+    # Display key fields from coach review
+    # Field names may vary - adapt based on actual REDCap form
+    tagList(
+      if ("coach_strengths" %in% names(coach_data) && !is.na(coach_data$coach_strengths[1])) {
+        div(
+          p(strong("Strengths:")),
+          p(coach_data$coach_strengths[1])
+        )
+      },
+      if ("coach_concerns" %in% names(coach_data) && !is.na(coach_data$coach_concerns[1])) {
+        div(
+          p(strong("Concerns:")),
+          p(coach_data$coach_concerns[1])
+        )
+      },
+      if ("coach_recommendations" %in% names(coach_data) && !is.na(coach_data$coach_recommendations[1])) {
+        div(
+          p(strong("Recommendations:")),
+          p(coach_data$coach_recommendations[1])
+        )
+      },
+      # Fallback: show completion status if no specific fields available
+      if (!any(c("coach_strengths", "coach_concerns", "coach_recommendations") %in% names(coach_data))) {
+        p(
+          icon("check", class = "text-success"),
+          " Coach review completed for ", resident_info$current_period
+        )
+      }
+    )
+  })
+
+  # Second Review Summary
+  output$second_review_summary <- renderUI({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    second_data <- get_resident_second_review(
+      app_data(),
+      rid,
+      resident_info$current_period
+    )
+
+    if (nrow(second_data) == 0) {
+      return(p(
+        class = "text-muted",
+        icon("info-circle"),
+        " No second review available for this period"
+      ))
+    }
+
+    # Display key fields from second review
+    # Field names may vary - adapt based on actual REDCap form
+    tagList(
+      if ("second_strengths" %in% names(second_data) && !is.na(second_data$second_strengths[1])) {
+        div(
+          p(strong("Strengths:")),
+          p(second_data$second_strengths[1])
+        )
+      },
+      if ("second_concerns" %in% names(second_data) && !is.na(second_data$second_concerns[1])) {
+        div(
+          p(strong("Concerns:")),
+          p(second_data$second_concerns[1])
+        )
+      },
+      if ("second_recommendations" %in% names(second_data) && !is.na(second_data$second_recommendations[1])) {
+        div(
+          p(strong("Recommendations:")),
+          p(second_data$second_recommendations[1])
+        )
+      },
+      # Fallback: show completion status if no specific fields available
+      if (!any(c("second_strengths", "second_concerns", "second_recommendations") %in% names(second_data))) {
+        p(
+          icon("check", class = "text-success"),
+          " Second review completed for ", resident_info$current_period
+        )
+      }
     )
   })
 
@@ -387,6 +598,89 @@ create_server <- function(initial_data) {
           x = 0.5, y = 0.5,
           showarrow = FALSE
         )
+    })
+  })
+
+  # Submit CCC Review
+  observeEvent(input$submit_ccc_review, {
+    rid <- selected_resident_id()
+    req(rid)
+
+    # Get resident info for current period
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    # Collect form data
+    ccc_data <- data.frame(
+      record_id = rid,
+      redcap_repeat_instrument = "ccc_review",
+      redcap_repeat_instance = NA,  # REDCap will auto-assign
+      ccc_session = resident_info$current_period,
+      ccc_discussion_notes = input$ccc_discussion_notes,
+      ccc_areas_of_strength = input$ccc_areas_of_strength,
+      ccc_areas_of_concern = input$ccc_areas_of_concern,
+      ccc_recommendations = input$ccc_recommendations,
+      ccc_action_items = input$ccc_action_items,
+      ccc_review_complete = 2,  # Complete status
+      stringsAsFactors = FALSE
+    )
+
+    # Validate required fields
+    if (nchar(trimws(input$ccc_discussion_notes)) == 0) {
+      showNotification(
+        "Please enter discussion notes before submitting.",
+        type = "warning",
+        duration = 5
+      )
+      return()
+    }
+
+    # Try to save to REDCap
+    tryCatch({
+      # Use REDCapR to write data
+      result <- REDCapR::redcap_write(
+        ds_to_write = ccc_data,
+        redcap_uri = REDCAP_CONFIG$url,
+        token = REDCAP_CONFIG$rdm_token
+      )
+
+      if (result$success) {
+        showNotification(
+          paste("CCC Review saved successfully for", resident_info$full_name),
+          type = "message",
+          duration = 5
+        )
+
+        # Refresh data to show updated completion status
+        tryCatch({
+          new_data <- load_ccc_data()
+          app_data(new_data)
+        }, error = function(e) {
+          showNotification(
+            "Review saved, but could not refresh data. Please use Refresh Data button.",
+            type = "warning",
+            duration = 5
+          )
+        })
+
+        # Return to list view
+        show_list_view(TRUE)
+        selected_resident_id(NULL)
+
+      } else {
+        showNotification(
+          paste("Error saving review:", result$outcome_message),
+          type = "error",
+          duration = 10
+        )
+      }
+    }, error = function(e) {
+      showNotification(
+        paste("Error saving CCC review:", e$message),
+        type = "error",
+        duration = 10
+      )
     })
   })
 
