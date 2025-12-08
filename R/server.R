@@ -456,31 +456,23 @@ create_server <- function(initial_data) {
     }
 
     tryCatch({
-      # Get ACGME milestone data from all_forms
-      acgme_data <- get_form_data_for_period(
-        app_data()$all_forms,
-        "acgme_miles",
-        rid,
-        previous_period_name
-      )
-
-      if (nrow(acgme_data) == 0) {
+      # Check if milestone workflow exists
+      if (is.null(app_data()$milestone_workflow)) {
         return(plotly::plot_ly() %>%
           plotly::add_annotations(
-            text = "No ACGME data available for this period",
+            text = "Milestone workflow not available",
             x = 0.5, y = 0.5,
             showarrow = FALSE
           ))
       }
 
-      # Create spider plot using gmed function
-      # gmed uses milestone_medians internally for plotting
-      gmed::create_milestone_spider_plot_final(
-        milestone_data = app_data()$all_forms$acgme_miles,
-        median_data = app_data()$milestone_medians,
+      # Create ACGME spider plot using milestone workflow
+      gmed::create_milestone_overview_dashboard(
+        milestone_results = app_data()$milestone_workflow,
         resident_id = rid,
         period_text = previous_period_name,
-        milestone_type = "acgme",
+        milestone_type = "program",
+        milestone_system = "acgme",
         resident_data = app_data()$residents
       )
     }, error = function(e) {
@@ -503,31 +495,23 @@ create_server <- function(initial_data) {
       slice(1)
 
     tryCatch({
-      # Get program milestone data from all_forms
-      program_data <- get_form_data_for_period(
-        app_data()$all_forms,
-        "milestone_entry",
-        rid,
-        resident_info$current_period
-      )
-
-      if (nrow(program_data) == 0) {
+      # Check if milestone workflow exists
+      if (is.null(app_data()$milestone_workflow)) {
         return(plotly::plot_ly() %>%
           plotly::add_annotations(
-            text = "No program milestone data available for this period",
+            text = "Milestone workflow not available",
             x = 0.5, y = 0.5,
             showarrow = FALSE
           ))
       }
 
-      # Create spider plot using gmed function
-      # gmed uses milestone_medians internally for plotting
-      gmed::create_milestone_spider_plot_final(
-        milestone_data = app_data()$all_forms$milestone_entry,
-        median_data = app_data()$milestone_medians,
+      # Create program milestone spider plot using milestone workflow (REP system)
+      gmed::create_milestone_overview_dashboard(
+        milestone_results = app_data()$milestone_workflow,
         resident_id = rid,
         period_text = resident_info$current_period,
         milestone_type = "program",
+        milestone_system = "rep",
         resident_data = app_data()$residents
       )
     }, error = function(e) {
@@ -550,31 +534,23 @@ create_server <- function(initial_data) {
       slice(1)
 
     tryCatch({
-      # Get self-evaluation milestone data from all_forms
-      self_data <- get_form_data_for_period(
-        app_data()$all_forms,
-        "milestone_selfevaluation_c33c",
-        rid,
-        resident_info$current_period
-      )
-
-      if (nrow(self_data) == 0) {
+      # Check if milestone workflow exists
+      if (is.null(app_data()$milestone_workflow)) {
         return(plotly::plot_ly() %>%
           plotly::add_annotations(
-            text = "No self-evaluation data available for this period",
+            text = "Milestone workflow not available",
             x = 0.5, y = 0.5,
             showarrow = FALSE
           ))
       }
 
-      # Create spider plot using gmed function
-      # gmed uses milestone_medians internally for plotting
-      gmed::create_milestone_spider_plot_final(
-        milestone_data = app_data()$all_forms$milestone_selfevaluation_c33c,
-        median_data = app_data()$milestone_medians,
+      # Create self-evaluation spider plot using milestone workflow (REP system)
+      gmed::create_milestone_overview_dashboard(
+        milestone_results = app_data()$milestone_workflow,
         resident_id = rid,
         period_text = resident_info$current_period,
         milestone_type = "self",
+        milestone_system = "rep",
         resident_data = app_data()$residents
       )
     }, error = function(e) {

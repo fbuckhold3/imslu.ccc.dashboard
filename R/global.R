@@ -320,12 +320,18 @@ load_ccc_data <- function(
     if ("residents" %in% names(rdm_data)) nrow(rdm_data$residents) else 0
   ))
 
-  # Note: gmed creates milestone_medians and processes milestone data internally
-  # The milestone data is available through:
-  #   - rdm_data$milestone_medians (for medians across all milestones)
-  #   - rdm_data$all_forms$milestone_entry (program milestones)
-  #   - rdm_data$all_forms$milestone_selfevaluation_c33c (self milestones)
-  #   - rdm_data$all_forms$acgme_miles (ACGME milestones)
+  # Create milestone workflow using data dictionary approach
+  message("  -> Creating milestone workflow from data dictionary...")
+  rdm_data$milestone_workflow <- tryCatch({
+    gmed::create_milestone_workflow_from_dict(
+      all_forms = rdm_data$all_forms,
+      data_dict = rdm_data$data_dict,
+      resident_data = rdm_data$residents
+    )
+  }, error = function(e) {
+    message("  Warning: Could not create milestone workflow: ", e$message)
+    NULL
+  })
 
   return(rdm_data)
 }
