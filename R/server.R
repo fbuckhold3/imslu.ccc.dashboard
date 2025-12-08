@@ -467,7 +467,7 @@ create_server <- function(initial_data) {
       }
 
       # Create ACGME spider plot using milestone workflow
-      gmed::create_milestone_overview_dashboard(
+      dashboard <- gmed::create_milestone_overview_dashboard(
         milestone_results = app_data()$milestone_workflow,
         resident_id = rid,
         period_text = previous_period_name,
@@ -475,6 +475,18 @@ create_server <- function(initial_data) {
         milestone_system = "acgme",
         resident_data = app_data()$residents
       )
+
+      # Extract spider plot from dashboard object
+      if (!is.null(dashboard) && !is.null(dashboard$spider_plot)) {
+        dashboard$spider_plot
+      } else {
+        plotly::plot_ly() %>%
+          plotly::add_annotations(
+            text = "No data available for this period",
+            x = 0.5, y = 0.5,
+            showarrow = FALSE
+          )
+      }
     }, error = function(e) {
       plotly::plot_ly() %>%
         plotly::add_annotations(
@@ -506,7 +518,7 @@ create_server <- function(initial_data) {
       }
 
       # Create program milestone spider plot using milestone workflow (REP system)
-      gmed::create_milestone_overview_dashboard(
+      dashboard <- gmed::create_milestone_overview_dashboard(
         milestone_results = app_data()$milestone_workflow,
         resident_id = rid,
         period_text = resident_info$current_period,
@@ -514,6 +526,18 @@ create_server <- function(initial_data) {
         milestone_system = "rep",
         resident_data = app_data()$residents
       )
+
+      # Extract spider plot from dashboard object
+      if (!is.null(dashboard) && !is.null(dashboard$spider_plot)) {
+        dashboard$spider_plot
+      } else {
+        plotly::plot_ly() %>%
+          plotly::add_annotations(
+            text = "No data available for this period",
+            x = 0.5, y = 0.5,
+            showarrow = FALSE
+          )
+      }
     }, error = function(e) {
       plotly::plot_ly() %>%
         plotly::add_annotations(
@@ -545,7 +569,7 @@ create_server <- function(initial_data) {
       }
 
       # Create self-evaluation spider plot using milestone workflow (REP system)
-      gmed::create_milestone_overview_dashboard(
+      dashboard <- gmed::create_milestone_overview_dashboard(
         milestone_results = app_data()$milestone_workflow,
         resident_id = rid,
         period_text = resident_info$current_period,
@@ -553,6 +577,18 @@ create_server <- function(initial_data) {
         milestone_system = "rep",
         resident_data = app_data()$residents
       )
+
+      # Extract spider plot from dashboard object
+      if (!is.null(dashboard) && !is.null(dashboard$spider_plot)) {
+        dashboard$spider_plot
+      } else {
+        plotly::plot_ly() %>%
+          plotly::add_annotations(
+            text = "No data available for this period",
+            x = 0.5, y = 0.5,
+            showarrow = FALSE
+          )
+      }
     }, error = function(e) {
       plotly::plot_ly() %>%
         plotly::add_annotations(
