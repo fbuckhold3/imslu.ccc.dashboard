@@ -237,7 +237,7 @@ create_server <- function(initial_data) {
       h4("Edit Program Milestones"),
       p(
         class = "text-muted",
-        "Review and edit milestone ratings for this period. Changes will be saved to the same REDCap instance."
+        "Review and edit milestone ratings for this period (1-9 scale). Changes will be saved to the same REDCap instance."
       ),
       DT::DTOutput("milestone_edit_table"),
       br(),
@@ -858,9 +858,20 @@ create_server <- function(initial_data) {
       # Row index corresponds to milestone_values row
       if (row_idx <= nrow(milestone_values)) {
         field_name <- milestone_values$field_name[row_idx]
+        numeric_value <- as.numeric(new_value)
+
+        # Validate value is between 1 and 9
+        if (is.na(numeric_value) || numeric_value < 1 || numeric_value > 9) {
+          showNotification(
+            paste("Invalid milestone value:", new_value, ". Must be between 1 and 9."),
+            type = "error",
+            duration = 5
+          )
+          return()
+        }
 
         # Update the value in update_data
-        update_data[[field_name]] <- as.numeric(new_value)
+        update_data[[field_name]] <- numeric_value
 
         # Try to save to REDCap
         tryCatch({
