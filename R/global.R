@@ -210,6 +210,60 @@ load_ccc_data <- function(
     }
   }
 
+  # Translate period fields from codes to labels
+  if (!is.null(rdm_data$data_dict)) {
+    message("  -> Translating period field codes to labels...")
+
+    # Period field candidates (all forms that have period fields)
+    period_field_candidates <- c(
+      "s_e_period",           # S Eval
+      "coach_period",         # Coach Review
+      "second_period",        # Second Review
+      "prog_mile_period",     # Milestone Entry
+      "prog_mile_period_self",# Milestone Self-Evaluation
+      "acgme_mile_period",    # ACGME Miles
+      "ccc_session"           # CCC Review
+    )
+
+    for (field in period_field_candidates) {
+      # Get period choices from data dictionary
+      period_choices <- rdm_data$data_dict %>%
+        filter(field_name == !!field) %>%
+        pull(select_choices_or_calculations)
+
+      if (length(period_choices) > 0 && !is.na(period_choices[1])) {
+        # Build translation map from codes to labels
+        choice_pairs <- strsplit(period_choices[1], "\\|")[[1]]
+        period_map <- list()
+        for (pair in choice_pairs) {
+          parts <- strsplit(trimws(pair), ",", fixed = TRUE)[[1]]
+          if (length(parts) >= 2) {
+            code <- trimws(parts[1])
+            label <- trimws(paste(parts[-1], collapse = ","))
+            period_map[[code]] <- label
+          }
+        }
+        period_map <- unlist(period_map)
+
+        # Translate in all forms that have this field
+        for (form_name in names(rdm_data$all_forms)) {
+          if (field %in% names(rdm_data$all_forms[[form_name]])) {
+            rdm_data$all_forms[[form_name]] <- rdm_data$all_forms[[form_name]] %>%
+              mutate(
+                !!field := if_else(
+                  !is.na(.data[[field]]) & .data[[field]] %in% names(period_map),
+                  period_map[.data[[field]]],
+                  .data[[field]]
+                )
+              )
+            message(sprintf("    Translated %s in form %s", field, form_name))
+          }
+        }
+      }
+    }
+    message("  Period field translation complete")
+  }
+
   # Calculate current period for each resident using gmed logic
   message("  -> Calculating expected periods for all residents...")
 
@@ -301,6 +355,18 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
   # Form-specific period filtering
   filtered_data <- switch(
     form_name,
+
+    # S Eval uses s_e_period
+    "s_eval" = {
+      if ("s_e_period" %in% names(form_data)) {
+        form_data %>%
+          filter(redcap_repeat_instrument == "s_eval") %>%
+          filter(!is.na(s_e_period), s_e_period == !!period_name)
+      } else {
+        form_data %>%
+          filter(redcap_repeat_instrument == "s_eval")
+      }
+    },
 
     # Milestone Entry uses prog_mile_period
     "milestone_entry" = {
