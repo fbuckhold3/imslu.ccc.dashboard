@@ -320,17 +320,12 @@ load_ccc_data <- function(
     if ("residents" %in% names(rdm_data)) nrow(rdm_data$residents) else 0
   ))
 
-  # Create clean milestone workflow for spider plots
-  message("  -> Creating milestone workflow for visualizations...")
-  rdm_data$milestone_workflow <- tryCatch({
-    gmed::create_clean_milestone_workflow(
-      raw_milestone_data = rdm_data$residents,
-      resident_data = rdm_data$residents
-    )
-  }, error = function(e) {
-    message("  Warning: Could not create milestone workflow: ", e$message)
-    NULL
-  })
+  # Note: gmed creates milestone_medians and processes milestone data internally
+  # The milestone data is available through:
+  #   - rdm_data$milestone_medians (for medians across all milestones)
+  #   - rdm_data$all_forms$milestone_entry (program milestones)
+  #   - rdm_data$all_forms$milestone_selfevaluation_c33c (self milestones)
+  #   - rdm_data$all_forms$acgme_miles (ACGME milestones)
 
   return(rdm_data)
 }

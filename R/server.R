@@ -456,18 +456,7 @@ create_server <- function(initial_data) {
     }
 
     tryCatch({
-      # Check if milestone workflow exists
-      if (is.null(app_data()$milestone_workflow)) {
-        return(plotly::plot_ly() %>%
-          plotly::add_annotations(
-            text = "Milestone workflow not available",
-            x = 0.5, y = 0.5,
-            showarrow = FALSE
-          ))
-      }
-
-      # Get ACGME milestone data from workflow
-      # Note: ACGME data might be in milestone_medians or need to use all_forms
+      # Get ACGME milestone data from all_forms
       acgme_data <- get_form_data_for_period(
         app_data()$all_forms,
         "acgme_miles",
@@ -478,15 +467,16 @@ create_server <- function(initial_data) {
       if (nrow(acgme_data) == 0) {
         return(plotly::plot_ly() %>%
           plotly::add_annotations(
-            text = "No ACGME data available",
+            text = "No ACGME data available for this period",
             x = 0.5, y = 0.5,
             showarrow = FALSE
           ))
       }
 
-      # Create spider plot using gmed function with milestone_workflow data
+      # Create spider plot using gmed function
+      # gmed uses milestone_medians internally for plotting
       gmed::create_milestone_spider_plot_final(
-        milestone_data = app_data()$milestone_medians,
+        milestone_data = app_data()$all_forms$acgme_miles,
         median_data = app_data()$milestone_medians,
         resident_id = rid,
         period_text = previous_period_name,
@@ -513,29 +503,27 @@ create_server <- function(initial_data) {
       slice(1)
 
     tryCatch({
-      # Check if milestone workflow exists
-      if (is.null(app_data()$milestone_workflow)) {
+      # Get program milestone data from all_forms
+      program_data <- get_form_data_for_period(
+        app_data()$all_forms,
+        "milestone_entry",
+        rid,
+        resident_info$current_period
+      )
+
+      if (nrow(program_data) == 0) {
         return(plotly::plot_ly() %>%
           plotly::add_annotations(
-            text = "Milestone workflow not available",
+            text = "No program milestone data available for this period",
             x = 0.5, y = 0.5,
             showarrow = FALSE
           ))
       }
 
-      # Get program milestone data from workflow
-      if (is.null(app_data()$milestone_workflow$p_miles)) {
-        return(plotly::plot_ly() %>%
-          plotly::add_annotations(
-            text = "No program milestone data available",
-            x = 0.5, y = 0.5,
-            showarrow = FALSE
-          ))
-      }
-
-      # Create spider plot using gmed function with workflow data
+      # Create spider plot using gmed function
+      # gmed uses milestone_medians internally for plotting
       gmed::create_milestone_spider_plot_final(
-        milestone_data = app_data()$milestone_workflow$p_miles,
+        milestone_data = app_data()$all_forms$milestone_entry,
         median_data = app_data()$milestone_medians,
         resident_id = rid,
         period_text = resident_info$current_period,
@@ -562,29 +550,27 @@ create_server <- function(initial_data) {
       slice(1)
 
     tryCatch({
-      # Check if milestone workflow exists
-      if (is.null(app_data()$milestone_workflow)) {
+      # Get self-evaluation milestone data from all_forms
+      self_data <- get_form_data_for_period(
+        app_data()$all_forms,
+        "milestone_selfevaluation_c33c",
+        rid,
+        resident_info$current_period
+      )
+
+      if (nrow(self_data) == 0) {
         return(plotly::plot_ly() %>%
           plotly::add_annotations(
-            text = "Milestone workflow not available",
+            text = "No self-evaluation data available for this period",
             x = 0.5, y = 0.5,
             showarrow = FALSE
           ))
       }
 
-      # Get self-evaluation milestone data from workflow
-      if (is.null(app_data()$milestone_workflow$s_miles)) {
-        return(plotly::plot_ly() %>%
-          plotly::add_annotations(
-            text = "No self-evaluation data available",
-            x = 0.5, y = 0.5,
-            showarrow = FALSE
-          ))
-      }
-
-      # Create spider plot using gmed function with workflow data
+      # Create spider plot using gmed function
+      # gmed uses milestone_medians internally for plotting
       gmed::create_milestone_spider_plot_final(
-        milestone_data = app_data()$milestone_workflow$s_miles,
+        milestone_data = app_data()$all_forms$milestone_selfevaluation_c33c,
         median_data = app_data()$milestone_medians,
         resident_id = rid,
         period_text = resident_info$current_period,
