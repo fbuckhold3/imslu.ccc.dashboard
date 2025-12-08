@@ -23,36 +23,53 @@ ui <- fluidPage(
 
       br(),
 
-      fluidRow(
-        column(
-          width = 3,
-          wellPanel(
-            h4("Current Review Period"),
-            textOutput("current_period_display"),
-            hr(),
-            actionButton(
-              inputId = "refresh_data",
-              label = "Refresh Data",
-              icon = icon("sync"),
-              class = "btn-primary"
+      # List View
+      conditionalPanel(
+        condition = "output.show_resident_list == true",
+        fluidRow(
+          column(
+            width = 3,
+            wellPanel(
+              h4("Current Review Period"),
+              textOutput("current_period_display"),
+              hr(),
+              actionButton(
+                inputId = "refresh_data",
+                label = "Refresh Data",
+                icon = icon("sync"),
+                class = "btn-primary"
+              )
+            ),
+
+            wellPanel(
+              h4("Review Progress"),
+              uiOutput("review_stats")
             )
           ),
 
-          wellPanel(
-            h4("Review Progress"),
-            uiOutput("review_stats")
+          column(
+            width = 9,
+            h3("Residents for Review"),
+            DT::DTOutput("resident_review_table")
           )
-        ),
+        )
+      ),
 
-        column(
-          width = 9,
-          h3("Residents for Review"),
-          DT::DTOutput("resident_review_table"),
-          br(),
-          hr(),
-
-          # Resident detail panel (shown when resident selected)
-          uiOutput("resident_detail_panel")
+      # Detail View
+      conditionalPanel(
+        condition = "output.show_resident_list == false",
+        fluidRow(
+          column(
+            width = 12,
+            actionButton(
+              inputId = "back_to_list",
+              label = "← Back to List",
+              icon = icon("arrow-left"),
+              class = "btn-secondary"
+            ),
+            hr(),
+            uiOutput("resident_detail_panel")
+          )
         )
       )
     ),

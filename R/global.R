@@ -320,6 +320,18 @@ load_ccc_data <- function(
     if ("residents" %in% names(rdm_data)) nrow(rdm_data$residents) else 0
   ))
 
+  # Create clean milestone workflow for spider plots
+  message("  -> Creating milestone workflow for visualizations...")
+  rdm_data$milestone_workflow <- tryCatch({
+    gmed::create_clean_milestone_workflow(
+      raw_milestone_data = rdm_data$residents,
+      resident_data = rdm_data$residents
+    )
+  }, error = function(e) {
+    message("  Warning: Could not create milestone workflow: ", e$message)
+    NULL
+  })
+
   return(rdm_data)
 }
 

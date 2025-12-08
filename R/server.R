@@ -9,6 +9,7 @@ create_server <- function(initial_data) {
     # Reactive values
     app_data <- reactiveVal(initial_data)
     selected_resident_id <- reactiveVal(NULL)
+    show_list_view <- reactiveVal(TRUE)
 
   # ===========================================================================
   # INITIALIZATION
@@ -47,6 +48,18 @@ create_server <- function(initial_data) {
   # ===========================================================================
   # MODE 1: CCC SEMI-ANNUAL REVIEW
   # ===========================================================================
+
+  # Control which view to show
+  output$show_resident_list <- reactive({
+    show_list_view()
+  })
+  outputOptions(output, "show_resident_list", suspendWhenHidden = FALSE)
+
+  # Back to list button
+  observeEvent(input$back_to_list, {
+    show_list_view(TRUE)
+    selected_resident_id(NULL)
+  })
 
   # Display current review period
   output$current_period_display <- renderText({
@@ -148,6 +161,7 @@ create_server <- function(initial_data) {
 
     selected_rid <- review_table$record_id[input$resident_review_table_rows_selected]
     selected_resident_id(selected_rid)
+    show_list_view(FALSE)  # Switch to detail view
   })
 
   # Resident detail panel
@@ -231,7 +245,18 @@ create_server <- function(initial_data) {
     }
 
     tryCatch({
-      # Get ACGME milestone data
+      # Check if milestone workflow exists
+      if (is.null(app_data()$milestone_workflow)) {
+        return(plotly::plot_ly() %>%
+          plotly::add_annotations(
+            text = "Milestone workflow not available",
+            x = 0.5, y = 0.5,
+            showarrow = FALSE
+          ))
+      }
+
+      # Get ACGME milestone data from workflow
+      # Note: ACGME data might be in milestone_medians or need to use all_forms
       acgme_data <- get_form_data_for_period(
         app_data()$all_forms,
         "acgme_miles",
@@ -248,9 +273,9 @@ create_server <- function(initial_data) {
           ))
       }
 
-      # Create spider plot using gmed function
+      # Create spider plot using gmed function with milestone_workflow data
       gmed::create_milestone_spider_plot_final(
-        milestone_data = app_data()$milestone_data,
+        milestone_data = app_data()$milestone_medians,
         median_data = app_data()$milestone_medians,
         resident_id = rid,
         period_text = previous_period_name,
@@ -277,15 +302,18 @@ create_server <- function(initial_data) {
       slice(1)
 
     tryCatch({
-      # Get program milestone data
-      program_data <- get_form_data_for_period(
-        app_data()$all_forms,
-        "milestone_entry",
-        rid,
-        resident_info$current_period
-      )
+      # Check if milestone workflow exists
+      if (is.null(app_data()$milestone_workflow)) {
+        return(plotly::plot_ly() %>%
+          plotly::add_annotations(
+            text = "Milestone workflow not available",
+            x = 0.5, y = 0.5,
+            showarrow = FALSE
+          ))
+      }
 
-      if (nrow(program_data) == 0) {
+      # Get program milestone data from workflow
+      if (is.null(app_data()$milestone_workflow$p_miles)) {
         return(plotly::plot_ly() %>%
           plotly::add_annotations(
             text = "No program milestone data available",
@@ -294,9 +322,9 @@ create_server <- function(initial_data) {
           ))
       }
 
-      # Create spider plot using gmed function
+      # Create spider plot using gmed function with workflow data
       gmed::create_milestone_spider_plot_final(
-        milestone_data = app_data()$milestone_data,
+        milestone_data = app_data()$milestone_workflow$p_miles,
         median_data = app_data()$milestone_medians,
         resident_id = rid,
         period_text = resident_info$current_period,
@@ -323,15 +351,18 @@ create_server <- function(initial_data) {
       slice(1)
 
     tryCatch({
-      # Get self-evaluation milestone data
-      self_data <- get_form_data_for_period(
-        app_data()$all_forms,
-        "milestone_selfevaluation_c33c",
-        rid,
-        resident_info$current_period
-      )
+      # Check if milestone workflow exists
+      if (is.null(app_data()$milestone_workflow)) {
+        return(plotly::plot_ly() %>%
+          plotly::add_annotations(
+            text = "Milestone workflow not available",
+            x = 0.5, y = 0.5,
+            showarrow = FALSE
+          ))
+      }
 
-      if (nrow(self_data) == 0) {
+      # Get self-evaluation milestone data from workflow
+      if (is.null(app_data()$milestone_workflow$s_miles)) {
         return(plotly::plot_ly() %>%
           plotly::add_annotations(
             text = "No self-evaluation data available",
@@ -340,9 +371,9 @@ create_server <- function(initial_data) {
           ))
       }
 
-      # Create spider plot using gmed function
+      # Create spider plot using gmed function with workflow data
       gmed::create_milestone_spider_plot_final(
-        milestone_data = app_data()$milestone_data,
+        milestone_data = app_data()$milestone_workflow$s_miles,
         median_data = app_data()$milestone_medians,
         resident_id = rid,
         period_text = resident_info$current_period,
