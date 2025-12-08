@@ -187,22 +187,50 @@ create_server <- function(initial_data) {
       p(strong("Level: "), resident_info$current_period),
       hr(),
 
-      h4("Milestone Visualizations"),
+      h4("Milestone Review and Data Entry"),
       fluidRow(
+        # Left column (1/3): Editable milestone table
         column(
           width = 4,
+          wellPanel(
+            h5("Edit Program Milestones"),
+            p(
+              class = "text-muted",
+              style = "font-size: 0.9em;",
+              "Edit milestone ratings (1-9 scale) for this period."
+            ),
+            DT::DTOutput("milestone_edit_table"),
+            br(),
+            actionButton(
+              "save_milestone_edits",
+              "Save Changes",
+              class = "btn-warning btn-block",
+              icon = icon("save")
+            )
+          )
+        ),
+
+        # Right column (2/3): Spider plots and descriptions
+        column(
+          width = 8,
+          # Three spider plots stacked vertically
           h5("ACGME Milestones (Previous Period)"),
-          plotly::plotlyOutput("plot_acgme_spider", height = "400px")
-        ),
-        column(
-          width = 4,
+          plotly::plotlyOutput("plot_acgme_spider", height = "350px"),
+          br(),
           h5("Program Milestones (Current Period)"),
-          plotly::plotlyOutput("plot_program_spider", height = "400px")
-        ),
-        column(
-          width = 4,
+          plotly::plotlyOutput("plot_program_spider", height = "350px"),
+          br(),
           h5("Self-Evaluation (Current Period)"),
-          plotly::plotlyOutput("plot_self_spider", height = "400px")
+          plotly::plotlyOutput("plot_self_spider", height = "350px"),
+          br(),
+          hr(),
+          h5("Milestone Descriptions"),
+          p(
+            class = "text-muted",
+            style = "font-size: 0.9em;",
+            "Descriptions and scores for specific competencies during this period."
+          ),
+          DT::DTOutput("milestone_descriptions_table")
         )
       ),
       hr(),
@@ -221,39 +249,6 @@ create_server <- function(initial_data) {
           wellPanel(
             h5("Second Review"),
             uiOutput("second_review_summary")
-          )
-        )
-      ),
-      hr(),
-
-      h4("Milestone Descriptions"),
-      p(
-        class = "text-muted",
-        "Descriptions provided for specific competencies during this period."
-      ),
-      DT::DTOutput("milestone_descriptions_table"),
-      br(),
-
-      h4("Edit Program Milestones"),
-      p(
-        class = "text-muted",
-        "Review and edit milestone ratings for this period (1-9 scale). Changes will be saved to the same REDCap instance."
-      ),
-      DT::DTOutput("milestone_edit_table"),
-      br(),
-      fluidRow(
-        column(
-          width = 12,
-          actionButton(
-            "save_milestone_edits",
-            "Save Milestone Changes",
-            class = "btn-warning",
-            icon = icon("save")
-          ),
-          span(
-            class = "text-muted",
-            style = "margin-left: 15px;",
-            "This will update the milestone entry in REDCap"
           )
         )
       ),
@@ -480,11 +475,12 @@ create_server <- function(initial_data) {
       descriptions <- data.frame(
         Competency = "No descriptions available",
         Source = "",
+        Score = NA,
         Description = "",
         stringsAsFactors = FALSE
       )
     } else {
-      names(descriptions) <- c("Competency", "Source", "Description")
+      names(descriptions) <- c("Competency", "Source", "Score", "Description")
     }
 
     DT::datatable(
@@ -516,34 +512,41 @@ create_server <- function(initial_data) {
     )
 
     if (nrow(milestone_values) == 0) {
-      milestone_values <- data.frame(
-        Competency = "No milestone data available",
+      display_data <- data.frame(
+        Subcompetency = "No milestone data available",
         Value = NA,
+        Image = "",
         stringsAsFactors = FALSE
       )
       editable <- FALSE
     } else {
-      # Keep field_name for later use but don't display it
+      # Add full names and image links
       display_data <- data.frame(
-        Competency = milestone_values$competency,
+        Subcompetency = sapply(milestone_values$competency, get_competency_full_name),
         Value = milestone_values$value,
+        Image = paste0('<a href="#" onclick="showImage(\'', milestone_values$competency, '.png\'); return false;">View</a>'),
         stringsAsFactors = FALSE
       )
-      milestone_values <- display_data
       editable <- TRUE
     }
 
     DT::datatable(
-      milestone_values,
+      display_data,
+      escape = FALSE,  # Allow HTML in Image column
       options = list(
         pageLength = 25,
         dom = 't',
-        ordering = TRUE,
-        searching = FALSE
+        ordering = FALSE,
+        searching = FALSE,
+        columnDefs = list(
+          list(width = '200px', targets = 0),  # Subcompetency column
+          list(width = '50px', targets = 1),   # Value column (editable)
+          list(width = '50px', targets = 2)    # Image link column
+        )
       ),
       rownames = FALSE,
       selection = 'none',
-      editable = if (editable) list(target = 'cell', disable = list(columns = c(0))) else FALSE
+      editable = if (editable) list(target = 'cell', disable = list(columns = c(0, 2))) else FALSE
     )
   })
 
@@ -835,22 +838,13 @@ create_server <- function(initial_data) {
       resident_info$current_period
     )
 
-    # Get current table data (with edits)
-    # Note: DT editable tables update via input$milestone_edit_table_cell_edit
-    # We need to get the proxy data or rebuild from edits
-    # For now, let's just show a message that edits are being processed
-
-    # Build data frame for REDCap submission
-    # Start with the original milestone entry data
-    update_data <- milestone_entry_data[1, ]
-
     # Check if there were any cell edits
     if (!is.null(input$milestone_edit_table_cell_edit)) {
       # Process cell edits
       edit_info <- input$milestone_edit_table_cell_edit
 
       # Get the row and column that was edited
-      row_idx <- edit_info$row
+      row_idx <- edit_info$row + 1  # DT uses 0-based indexing
       col_idx <- edit_info$col
       new_value <- edit_info$value
 
@@ -870,8 +864,31 @@ create_server <- function(initial_data) {
           return()
         }
 
-        # Update the value in update_data
-        update_data[[field_name]] <- numeric_value
+        # Build minimal data frame for REDCap submission with only required fields
+        # Get all milestone value fields from the original data
+        milestone_cols <- grep("^rep_(pc|mk|sbp|pbli|prof|ics)\\d+$",
+                              names(milestone_entry_data), value = TRUE)
+
+        update_data <- data.frame(
+          record_id = as.character(milestone_entry_data$record_id[1]),
+          redcap_repeat_instrument = "milestone_entry",
+          redcap_repeat_instance = as.numeric(milestone_entry_data$redcap_repeat_instance[1]),
+          stringsAsFactors = FALSE
+        )
+
+        # Add all milestone fields
+        for (col in milestone_cols) {
+          if (col == field_name) {
+            update_data[[col]] <- numeric_value
+          } else if (col %in% names(milestone_entry_data)) {
+            update_data[[col]] <- milestone_entry_data[[col]][1]
+          }
+        }
+
+        # Add the period field
+        if ("prog_mile_period" %in% names(milestone_entry_data)) {
+          update_data$prog_mile_period <- milestone_entry_data$prog_mile_period[1]
+        }
 
         # Try to save to REDCap
         tryCatch({

@@ -3,7 +3,33 @@
 ui <- fluidPage(
   # Custom CSS
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "custom.css")
+    tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
+    tags$script(HTML("
+      function showImage(filename) {
+        var modal = document.getElementById('imageModal');
+        var modalImg = document.getElementById('modalImage');
+        modal.style.display = 'block';
+        modalImg.src = filename;
+      }
+
+      function closeModal() {
+        document.getElementById('imageModal').style.display = 'none';
+      }
+
+      // Close modal when clicking outside the image
+      window.onclick = function(event) {
+        var modal = document.getElementById('imageModal');
+        if (event.target == modal) {
+          modal.style.display = 'none';
+        }
+      }
+    "))
+  ),
+
+  # Image Modal
+  tags$div(id = "imageModal", class = "image-modal",
+    tags$span(class = "image-modal-close", onclick = "closeModal()", HTML("&times;")),
+    tags$img(id = "modalImage", class = "image-modal-content")
   ),
 
   # Title

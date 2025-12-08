@@ -211,7 +211,7 @@ get_resident_second_review <- function(rdm_data, record_id, period_name) {
 #' @param rdm_data List containing all data
 #' @param record_id Resident record ID
 #' @param period_name Period name
-#' @return Data frame with competency, source, and description
+#' @return Data frame with competency, source, score, and description
 get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
 
   # Get program milestone data
@@ -233,6 +233,7 @@ get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
   descriptions <- data.frame(
     competency = character(),
     source = character(),
+    score = numeric(),
     description = character(),
     stringsAsFactors = FALSE
   )
@@ -246,9 +247,18 @@ get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
       if (!is.na(program_data[[col]][1]) && nchar(trimws(program_data[[col]][1])) > 0) {
         # Extract competency name (e.g., "rep_pc1_desc" -> "PC1")
         competency <- toupper(gsub("rep_|_desc", "", col))
+        # Get the corresponding value field (e.g., "rep_pc1")
+        value_field <- gsub("_desc", "", col)
+        score <- if (value_field %in% names(program_data)) {
+          as.numeric(program_data[[value_field]][1])
+        } else {
+          NA
+        }
+
         descriptions <- rbind(descriptions, data.frame(
           competency = competency,
           source = "Program",
+          score = score,
           description = program_data[[col]][1],
           stringsAsFactors = FALSE
         ))
@@ -264,9 +274,18 @@ get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
       if (!is.na(self_data[[col]][1]) && nchar(trimws(self_data[[col]][1])) > 0) {
         # Extract competency name (e.g., "rep_pc1_self_desc" -> "PC1")
         competency <- toupper(gsub("rep_|_self_desc", "", col))
+        # Get the corresponding value field (e.g., "rep_pc1_self")
+        value_field <- gsub("_desc", "", col)
+        score <- if (value_field %in% names(self_data)) {
+          as.numeric(self_data[[value_field]][1])
+        } else {
+          NA
+        }
+
         descriptions <- rbind(descriptions, data.frame(
           competency = competency,
           source = "Self",
+          score = score,
           description = self_data[[col]][1],
           stringsAsFactors = FALSE
         ))
