@@ -27,13 +27,8 @@ ui <- fluidPage(
         column(
           width = 3,
           wellPanel(
-            h4("Review Period"),
-            selectInput(
-              inputId = "review_period",
-              label = "Select Review Period:",
-              choices = c("Mid Year", "End Year"),
-              selected = get_current_ccc_period()
-            ),
+            h4("Current Review Period"),
+            textOutput("current_period_display"),
             hr(),
             actionButton(
               inputId = "refresh_data",
@@ -85,13 +80,6 @@ ui <- fluidPage(
                 placeholder = "Type to search...",
                 maxOptions = 100
               )
-            ),
-            hr(),
-            selectInput(
-              inputId = "adhoc_period",
-              label = "Discussion Period:",
-              choices = PERIOD_NAMES,
-              selected = NULL
             )
           )
         ),

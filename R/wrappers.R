@@ -70,11 +70,31 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
     ))
   }
 
-  # Check CCC completion for each resident
+  # Check completion status for each resident
   purrr::map_dfr(1:nrow(residents_for_review), function(i) {
     res <- residents_for_review[i, ]
 
-    # Check if CCC review form is complete for this resident's current period
+    # Check coach review completion
+    coach_data <- get_form_data_for_period(
+      rdm_data$all_forms,
+      "coach_rev",
+      res$record_id,
+      res$current_period
+    )
+
+    coach_complete <- nrow(coach_data) > 0
+
+    # Check second review completion
+    second_data <- get_form_data_for_period(
+      rdm_data$all_forms,
+      "second_review",
+      res$record_id,
+      res$current_period
+    )
+
+    second_complete <- nrow(second_data) > 0
+
+    # Check CCC review completion
     ccc_data <- get_form_data_for_period(
       rdm_data$all_forms,
       "ccc_review",
@@ -82,16 +102,15 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
       res$current_period
     )
 
-    ccc_complete <- nrow(ccc_data) > 0 &&
-                    "ccc_review_complete" %in% names(ccc_data) &&
-                    !is.na(ccc_data$ccc_review_complete[1]) &&
-                    ccc_data$ccc_review_complete[1] == "2"
+    ccc_complete <- nrow(ccc_data) > 0
 
     data.frame(
       record_id = res$record_id,
       resident = res$full_name,
       level = res$current_period,
       expected_period = res$current_period,
+      coach_complete = coach_complete,
+      second_complete = second_complete,
       ccc_complete = ccc_complete,
       stringsAsFactors = FALSE
     )

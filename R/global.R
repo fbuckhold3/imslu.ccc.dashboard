@@ -338,6 +338,30 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
       }
     },
 
+    # Coach Review uses coach_period
+    "coach_rev" = {
+      if ("coach_period" %in% names(form_data)) {
+        form_data %>%
+          filter(redcap_repeat_instrument == "coach_rev") %>%
+          filter(!is.na(coach_period), coach_period == !!period_name)
+      } else {
+        form_data %>%
+          filter(redcap_repeat_instrument == "coach_rev")
+      }
+    },
+
+    # Second Review uses second_period
+    "second_review" = {
+      if ("second_period" %in% names(form_data)) {
+        form_data %>%
+          filter(redcap_repeat_instrument == "second_review") %>%
+          filter(!is.na(second_period), second_period == !!period_name)
+      } else {
+        form_data %>%
+          filter(redcap_repeat_instrument == "second_review")
+      }
+    },
+
     # CCC Review uses ccc_session
     "ccc_review" = {
       if ("ccc_session" %in% names(form_data)) {

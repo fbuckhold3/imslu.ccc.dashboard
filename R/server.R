@@ -48,21 +48,28 @@ create_server <- function(initial_data) {
   # MODE 1: CCC SEMI-ANNUAL REVIEW
   # ===========================================================================
 
+  # Display current review period
+  output$current_period_display <- renderText({
+    paste(get_current_ccc_period(), "Reviews")
+  })
+
   # Resident review table
   output$resident_review_table <- DT::renderDT({
-    req(input$review_period)
+    # Use automatic period detection
+    current_period <- get_current_ccc_period()
 
     review_table <- get_ccc_review_table(
       app_data(),
-      input$review_period
+      current_period
     )
 
     if (nrow(review_table) == 0) {
       return(data.frame(
         Resident = character(0),
         Level = character(0),
-        Period = character(0),
-        Completed = character(0)
+        Coach = character(0),
+        Second = character(0),
+        CCC = character(0)
       ))
     }
 
@@ -71,11 +78,14 @@ create_server <- function(initial_data) {
       select(
         Resident = resident,
         Level = level,
-        Period = expected_period,
-        Completed = ccc_complete
+        Coach = coach_complete,
+        Second = second_complete,
+        CCC = ccc_complete
       ) %>%
       mutate(
-        Completed = ifelse(Completed, "✓ Yes", "✗ No")
+        Coach = ifelse(Coach, "✓", "✗"),
+        Second = ifelse(Second, "✓", "✗"),
+        CCC = ifelse(CCC, "✓", "✗")
       )
 
     DT::datatable(
@@ -88,32 +98,39 @@ create_server <- function(initial_data) {
       )
     ) %>%
       DT::formatStyle(
-        'Completed',
-        backgroundColor = DT::styleEqual(
-          c("✓ Yes", "✗ No"),
-          c('#d4edda', '#f8d7da')
-        )
+        'Coach',
+        backgroundColor = DT::styleEqual(c("✓", "✗"), c('#d4edda', '#f8d7da'))
+      ) %>%
+      DT::formatStyle(
+        'Second',
+        backgroundColor = DT::styleEqual(c("✓", "✗"), c('#d4edda', '#f8d7da'))
+      ) %>%
+      DT::formatStyle(
+        'CCC',
+        backgroundColor = DT::styleEqual(c("✓", "✗"), c('#d4edda', '#f8d7da'))
       )
   })
 
   # Review statistics
   output$review_stats <- renderUI({
-    req(input$review_period)
+    current_period <- get_current_ccc_period()
 
     review_table <- get_ccc_review_table(
       app_data(),
-      input$review_period
+      current_period
     )
 
     total <- nrow(review_table)
-    completed <- sum(review_table$ccc_complete, na.rm = TRUE)
-    remaining <- total - completed
+    coach_completed <- sum(review_table$coach_complete, na.rm = TRUE)
+    second_completed <- sum(review_table$second_complete, na.rm = TRUE)
+    ccc_completed <- sum(review_table$ccc_complete, na.rm = TRUE)
 
     tagList(
       p(
         strong("Total Residents: "), total, br(),
-        strong("Completed: "), completed, br(),
-        strong("Remaining: "), remaining
+        strong("Coach Reviews: "), coach_completed, " / ", total, br(),
+        strong("Second Reviews: "), second_completed, " / ", total, br(),
+        strong("CCC Reviews: "), ccc_completed, " / ", total
       )
     )
   })
@@ -122,9 +139,11 @@ create_server <- function(initial_data) {
   observeEvent(input$resident_review_table_rows_selected, {
     req(input$resident_review_table_rows_selected)
 
+    current_period <- get_current_ccc_period()
+
     review_table <- get_ccc_review_table(
       app_data(),
-      input$review_period
+      current_period
     )
 
     selected_rid <- review_table$record_id[input$resident_review_table_rows_selected]
@@ -221,7 +240,7 @@ create_server <- function(initial_data) {
   # ===========================================================================
 
   output$adhoc_review_panel <- renderUI({
-    req(input$adhoc_resident, input$adhoc_period)
+    req(input$adhoc_resident)
 
     # Get resident info
     resident_info <- app_data()$residents %>%
@@ -232,16 +251,23 @@ create_server <- function(initial_data) {
       return(p("Resident not found"))
     }
 
-    # Get milestones for selected period
+    # Use resident's current period
+    current_period <- resident_info$current_period
+
+    # Get milestones for current period
     milestones <- get_resident_milestones(
       app_data(),
       input$adhoc_resident,
-      input$adhoc_period
+      current_period
     )
 
     tagList(
       h3(paste("Ad Hoc Discussion:", resident_info$full_name)),
-      p(strong("Discussion Period: "), input$adhoc_period),
+      p(
+        strong("Level: "), current_period, br(),
+        strong("Type: "), resident_info$type, br(),
+        strong("Graduation Year: "), resident_info$grad_yr
+      ),
       hr(),
 
       h4("Available Data"),
