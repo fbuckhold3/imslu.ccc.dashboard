@@ -32,6 +32,10 @@
       "Source": "CRAN",
       "Repository": "https://cran.rstudio.com/"
     },
+    "plotly": {
+      "Source": "CRAN",
+      "Repository": "https://cran.rstudio.com/"
+    },
     "gmed": {
       "Source": "github",
       "RemoteUsername": "fbuckhold3",

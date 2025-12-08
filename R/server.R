@@ -99,15 +99,15 @@ create_server <- function(initial_data) {
     ) %>%
       DT::formatStyle(
         'Coach',
-        backgroundColor = DT::styleEqual(c("✓", "✗"), c('#d4edda', '#f8d7da'))
+        color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
       ) %>%
       DT::formatStyle(
         'Second',
-        backgroundColor = DT::styleEqual(c("✓", "✗"), c('#d4edda', '#f8d7da'))
+        color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
       ) %>%
       DT::formatStyle(
         'CCC',
-        backgroundColor = DT::styleEqual(c("✓", "✗"), c('#d4edda', '#f8d7da'))
+        color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
       )
   })
 
@@ -168,59 +168,27 @@ create_server <- function(initial_data) {
       filter(record_id == rid) %>%
       slice(1)
 
-    # Get milestones
-    milestones <- get_resident_milestones(
-      app_data(),
-      rid,
-      resident_info$current_period
-    )
-
-    # Get existing CCC review
-    ccc_review <- get_resident_ccc_review(
-      app_data(),
-      rid,
-      resident_info$current_period
-    )
-
     tagList(
       h3(paste("CCC Review:", resident_info$full_name)),
       p(strong("Level: "), resident_info$current_period),
       hr(),
 
-      h4("Milestone Data"),
+      h4("Milestone Visualizations"),
       fluidRow(
         column(
           width = 4,
-          wellPanel(
-            h5("ACGME Milestones (Previous Period)"),
-            if (nrow(milestones$acgme) > 0) {
-              p("Data available")
-            } else {
-              p(em("No data"))
-            }
-          )
+          h5("ACGME Milestones (Previous Period)"),
+          plotly::plotlyOutput("plot_acgme_spider", height = "400px")
         ),
         column(
           width = 4,
-          wellPanel(
-            h5("Program Milestones (Current Period)"),
-            if (nrow(milestones$program) > 0) {
-              p("Data available")
-            } else {
-              p(em("No data"))
-            }
-          )
+          h5("Program Milestones (Current Period)"),
+          plotly::plotlyOutput("plot_program_spider", height = "400px")
         ),
         column(
           width = 4,
-          wellPanel(
-            h5("Self-Evaluation (Current Period)"),
-            if (nrow(milestones$self) > 0) {
-              p("Data available")
-            } else {
-              p(em("No data"))
-            }
-          )
+          h5("Self-Evaluation (Current Period)"),
+          plotly::plotlyOutput("plot_self_spider", height = "400px")
         )
       ),
       hr(),
@@ -233,6 +201,162 @@ create_server <- function(initial_data) {
         class = "btn-primary"
       )
     )
+  })
+
+  # ACGME Spider Plot (Previous Period)
+  output$plot_acgme_spider <- plotly::renderPlotly({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    # Get previous period
+    period_num <- get_period_number(resident_info$current_period)
+    previous_period_num <- if (!is.na(period_num) && period_num > 0) period_num - 1 else NA
+    previous_period_name <- if (!is.na(previous_period_num)) {
+      get_period_name(previous_period_num)
+    } else {
+      NA_character_
+    }
+
+    if (is.na(previous_period_name)) {
+      return(plotly::plot_ly() %>%
+        plotly::add_annotations(
+          text = "No previous period",
+          x = 0.5, y = 0.5,
+          showarrow = FALSE
+        ))
+    }
+
+    tryCatch({
+      # Get ACGME milestone data
+      acgme_data <- get_form_data_for_period(
+        app_data()$all_forms,
+        "acgme_miles",
+        rid,
+        previous_period_name
+      )
+
+      if (nrow(acgme_data) == 0) {
+        return(plotly::plot_ly() %>%
+          plotly::add_annotations(
+            text = "No ACGME data available",
+            x = 0.5, y = 0.5,
+            showarrow = FALSE
+          ))
+      }
+
+      # Create spider plot using gmed function
+      gmed::create_milestone_spider_plot_final(
+        milestone_data = app_data()$milestone_data,
+        median_data = app_data()$milestone_medians,
+        resident_id = rid,
+        period_text = previous_period_name,
+        milestone_type = "acgme",
+        resident_data = app_data()$residents
+      )
+    }, error = function(e) {
+      plotly::plot_ly() %>%
+        plotly::add_annotations(
+          text = paste("Error:", e$message),
+          x = 0.5, y = 0.5,
+          showarrow = FALSE
+        )
+    })
+  })
+
+  # Program Spider Plot (Current Period)
+  output$plot_program_spider <- plotly::renderPlotly({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    tryCatch({
+      # Get program milestone data
+      program_data <- get_form_data_for_period(
+        app_data()$all_forms,
+        "milestone_entry",
+        rid,
+        resident_info$current_period
+      )
+
+      if (nrow(program_data) == 0) {
+        return(plotly::plot_ly() %>%
+          plotly::add_annotations(
+            text = "No program milestone data available",
+            x = 0.5, y = 0.5,
+            showarrow = FALSE
+          ))
+      }
+
+      # Create spider plot using gmed function
+      gmed::create_milestone_spider_plot_final(
+        milestone_data = app_data()$milestone_data,
+        median_data = app_data()$milestone_medians,
+        resident_id = rid,
+        period_text = resident_info$current_period,
+        milestone_type = "program",
+        resident_data = app_data()$residents
+      )
+    }, error = function(e) {
+      plotly::plot_ly() %>%
+        plotly::add_annotations(
+          text = paste("Error:", e$message),
+          x = 0.5, y = 0.5,
+          showarrow = FALSE
+        )
+    })
+  })
+
+  # Self-Evaluation Spider Plot (Current Period)
+  output$plot_self_spider <- plotly::renderPlotly({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    tryCatch({
+      # Get self-evaluation milestone data
+      self_data <- get_form_data_for_period(
+        app_data()$all_forms,
+        "milestone_selfevaluation_c33c",
+        rid,
+        resident_info$current_period
+      )
+
+      if (nrow(self_data) == 0) {
+        return(plotly::plot_ly() %>%
+          plotly::add_annotations(
+            text = "No self-evaluation data available",
+            x = 0.5, y = 0.5,
+            showarrow = FALSE
+          ))
+      }
+
+      # Create spider plot using gmed function
+      gmed::create_milestone_spider_plot_final(
+        milestone_data = app_data()$milestone_data,
+        median_data = app_data()$milestone_medians,
+        resident_id = rid,
+        period_text = resident_info$current_period,
+        milestone_type = "self",
+        resident_data = app_data()$residents
+      )
+    }, error = function(e) {
+      plotly::plot_ly() %>%
+        plotly::add_annotations(
+          text = paste("Error:", e$message),
+          x = 0.5, y = 0.5,
+          showarrow = FALSE
+        )
+    })
   })
 
   # ===========================================================================

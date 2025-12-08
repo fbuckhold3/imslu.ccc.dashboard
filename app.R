@@ -2,6 +2,7 @@ library(shiny)
 library(dplyr)
 library(DT)
 library(purrr)
+library(plotly)
 library(gmed)
 
 # Ensure pipe operator is available
