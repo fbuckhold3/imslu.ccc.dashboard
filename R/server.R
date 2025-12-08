@@ -226,6 +226,39 @@ create_server <- function(initial_data) {
       ),
       hr(),
 
+      h4("Milestone Descriptions"),
+      p(
+        class = "text-muted",
+        "Descriptions provided for specific competencies during this period."
+      ),
+      DT::DTOutput("milestone_descriptions_table"),
+      br(),
+
+      h4("Edit Program Milestones"),
+      p(
+        class = "text-muted",
+        "Review and edit milestone ratings for this period. Changes will be saved to the same REDCap instance."
+      ),
+      DT::DTOutput("milestone_edit_table"),
+      br(),
+      fluidRow(
+        column(
+          width = 12,
+          actionButton(
+            "save_milestone_edits",
+            "Save Milestone Changes",
+            class = "btn-warning",
+            icon = icon("save")
+          ),
+          span(
+            class = "text-muted",
+            style = "margin-left: 15px;",
+            "This will update the milestone entry in REDCap"
+          )
+        )
+      ),
+      hr(),
+
       h4("CCC Review Form"),
       p(
         class = "text-muted",
@@ -425,6 +458,92 @@ create_server <- function(initial_data) {
           " Second review completed for ", resident_info$current_period
         )
       }
+    )
+  })
+
+  # Milestone Descriptions Table
+  output$milestone_descriptions_table <- DT::renderDT({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    descriptions <- get_milestone_descriptions(
+      app_data(),
+      rid,
+      resident_info$current_period
+    )
+
+    if (nrow(descriptions) == 0) {
+      descriptions <- data.frame(
+        Competency = "No descriptions available",
+        Source = "",
+        Description = "",
+        stringsAsFactors = FALSE
+      )
+    } else {
+      names(descriptions) <- c("Competency", "Source", "Description")
+    }
+
+    DT::datatable(
+      descriptions,
+      options = list(
+        pageLength = 10,
+        dom = 't',
+        ordering = TRUE,
+        searching = FALSE
+      ),
+      rownames = FALSE,
+      selection = 'none'
+    )
+  })
+
+  # Milestone Edit Table (Editable)
+  output$milestone_edit_table <- DT::renderDT({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    milestone_values <- get_milestone_values_for_edit(
+      app_data(),
+      rid,
+      resident_info$current_period
+    )
+
+    if (nrow(milestone_values) == 0) {
+      milestone_values <- data.frame(
+        Competency = "No milestone data available",
+        Value = NA,
+        stringsAsFactors = FALSE
+      )
+      editable <- FALSE
+    } else {
+      # Keep field_name for later use but don't display it
+      display_data <- data.frame(
+        Competency = milestone_values$competency,
+        Value = milestone_values$value,
+        stringsAsFactors = FALSE
+      )
+      milestone_values <- display_data
+      editable <- TRUE
+    }
+
+    DT::datatable(
+      milestone_values,
+      options = list(
+        pageLength = 25,
+        dom = 't',
+        ordering = TRUE,
+        searching = FALSE
+      ),
+      rownames = FALSE,
+      selection = 'none',
+      editable = if (editable) list(target = 'cell', disable = list(columns = c(0))) else FALSE
     )
   })
 
@@ -680,6 +799,117 @@ create_server <- function(initial_data) {
         duration = 10
       )
     })
+  })
+
+  # Save Milestone Edits
+  observeEvent(input$save_milestone_edits, {
+    rid <- selected_resident_id()
+    req(rid)
+
+    # Get resident info for current period
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    # Get the current milestone data with all fields including instance info
+    milestone_entry_data <- get_form_data_for_period(
+      app_data()$all_forms,
+      "milestone_entry",
+      rid,
+      resident_info$current_period
+    )
+
+    if (nrow(milestone_entry_data) == 0) {
+      showNotification(
+        "No milestone entry found for this period.",
+        type = "warning",
+        duration = 5
+      )
+      return()
+    }
+
+    # Get the milestone values with field names
+    milestone_values <- get_milestone_values_for_edit(
+      app_data(),
+      rid,
+      resident_info$current_period
+    )
+
+    # Get current table data (with edits)
+    # Note: DT editable tables update via input$milestone_edit_table_cell_edit
+    # We need to get the proxy data or rebuild from edits
+    # For now, let's just show a message that edits are being processed
+
+    # Build data frame for REDCap submission
+    # Start with the original milestone entry data
+    update_data <- milestone_entry_data[1, ]
+
+    # Check if there were any cell edits
+    if (!is.null(input$milestone_edit_table_cell_edit)) {
+      # Process cell edits
+      edit_info <- input$milestone_edit_table_cell_edit
+
+      # Get the row and column that was edited
+      row_idx <- edit_info$row
+      col_idx <- edit_info$col
+      new_value <- edit_info$value
+
+      # Map back to competency and field name
+      # Row index corresponds to milestone_values row
+      if (row_idx <= nrow(milestone_values)) {
+        field_name <- milestone_values$field_name[row_idx]
+
+        # Update the value in update_data
+        update_data[[field_name]] <- as.numeric(new_value)
+
+        # Try to save to REDCap
+        tryCatch({
+          result <- REDCapR::redcap_write(
+            ds_to_write = update_data,
+            redcap_uri = REDCAP_CONFIG$url,
+            token = REDCAP_CONFIG$rdm_token
+          )
+
+          if (result$success) {
+            showNotification(
+              paste("Milestone values updated successfully for", resident_info$full_name),
+              type = "message",
+              duration = 5
+            )
+
+            # Refresh data
+            tryCatch({
+              new_data <- load_ccc_data()
+              app_data(new_data)
+            }, error = function(e) {
+              showNotification(
+                "Values saved, but could not refresh data. Please use Refresh Data button.",
+                type = "warning",
+                duration = 5
+              )
+            })
+          } else {
+            showNotification(
+              paste("Error saving milestone values:", result$outcome_message),
+              type = "error",
+              duration = 10
+            )
+          }
+        }, error = function(e) {
+          showNotification(
+            paste("Error saving milestone values:", e$message),
+            type = "error",
+            duration = 10
+          )
+        })
+      }
+    } else {
+      showNotification(
+        "No edits detected. Make changes to the table before saving.",
+        type = "info",
+        duration = 5
+      )
+    }
   })
 
   # ===========================================================================

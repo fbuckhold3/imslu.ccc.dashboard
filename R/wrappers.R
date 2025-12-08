@@ -204,3 +204,129 @@ get_resident_second_review <- function(rdm_data, record_id, period_name) {
     period_name
   )
 }
+
+#' Get Milestone Descriptions for Resident and Period
+#'
+#' Extracts populated description fields from milestone_entry and self-evaluation
+#' @param rdm_data List containing all data
+#' @param record_id Resident record ID
+#' @param period_name Period name
+#' @return Data frame with competency, source, and description
+get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
+
+  # Get program milestone data
+  program_data <- get_form_data_for_period(
+    rdm_data$all_forms,
+    "milestone_entry",
+    record_id,
+    period_name
+  )
+
+  # Get self-evaluation data
+  self_data <- get_form_data_for_period(
+    rdm_data$all_forms,
+    "milestone_selfevaluation_c33c",
+    record_id,
+    period_name
+  )
+
+  descriptions <- data.frame(
+    competency = character(),
+    source = character(),
+    description = character(),
+    stringsAsFactors = FALSE
+  )
+
+  # Extract program milestone descriptions
+  if (nrow(program_data) > 0) {
+    desc_cols <- grep("_desc$", names(program_data), value = TRUE)
+    desc_cols <- desc_cols[!grepl("_self_desc$", desc_cols)]  # Exclude self descriptions
+
+    for (col in desc_cols) {
+      if (!is.na(program_data[[col]][1]) && nchar(trimws(program_data[[col]][1])) > 0) {
+        # Extract competency name (e.g., "rep_pc1_desc" -> "PC1")
+        competency <- toupper(gsub("rep_|_desc", "", col))
+        descriptions <- rbind(descriptions, data.frame(
+          competency = competency,
+          source = "Program",
+          description = program_data[[col]][1],
+          stringsAsFactors = FALSE
+        ))
+      }
+    }
+  }
+
+  # Extract self-evaluation descriptions
+  if (nrow(self_data) > 0) {
+    desc_cols <- grep("_self_desc$", names(self_data), value = TRUE)
+
+    for (col in desc_cols) {
+      if (!is.na(self_data[[col]][1]) && nchar(trimws(self_data[[col]][1])) > 0) {
+        # Extract competency name (e.g., "rep_pc1_self_desc" -> "PC1")
+        competency <- toupper(gsub("rep_|_self_desc", "", col))
+        descriptions <- rbind(descriptions, data.frame(
+          competency = competency,
+          source = "Self",
+          description = self_data[[col]][1],
+          stringsAsFactors = FALSE
+        ))
+      }
+    }
+  }
+
+  return(descriptions)
+}
+
+#' Get Milestone Entry Values for Editing
+#'
+#' Gets current milestone values for a resident and period for editing
+#' @param rdm_data List containing all data
+#' @param record_id Resident record ID
+#' @param period_name Period name
+#' @return Data frame with competency names and values
+get_milestone_values_for_edit <- function(rdm_data, record_id, period_name) {
+
+  # Get program milestone data
+  program_data <- get_form_data_for_period(
+    rdm_data$all_forms,
+    "milestone_entry",
+    record_id,
+    period_name
+  )
+
+  if (nrow(program_data) == 0) {
+    return(data.frame(
+      competency = character(),
+      value = numeric(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Get all milestone value columns (not descriptions, not metadata)
+  value_cols <- grep("^rep_(pc|mk|sbp|pbli|prof|ics)\\d+$", names(program_data), value = TRUE)
+
+  milestone_values <- data.frame(
+    competency = character(),
+    field_name = character(),
+    value = numeric(),
+    stringsAsFactors = FALSE
+  )
+
+  for (col in value_cols) {
+    # Extract competency name (e.g., "rep_pc1" -> "PC1")
+    competency <- toupper(gsub("rep_", "", col))
+    value <- program_data[[col]][1]
+
+    # Only include if value exists
+    if (!is.na(value)) {
+      milestone_values <- rbind(milestone_values, data.frame(
+        competency = competency,
+        field_name = col,
+        value = as.numeric(value),
+        stringsAsFactors = FALSE
+      ))
+    }
+  }
+
+  return(milestone_values)
+}
