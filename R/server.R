@@ -189,7 +189,7 @@ create_server <- function(initial_data) {
 
       h4("Milestone Review and Data Entry"),
       fluidRow(
-        # Left column (1/3): Editable milestone table
+        # Left column (1/3): Editable milestone table and descriptions
         column(
           width = 4,
           wellPanel(
@@ -207,30 +207,31 @@ create_server <- function(initial_data) {
               class = "btn-warning btn-block",
               icon = icon("save")
             )
+          ),
+          br(),
+          wellPanel(
+            h5("Milestone Descriptions"),
+            p(
+              class = "text-muted",
+              style = "font-size: 0.9em;",
+              "Descriptions provided for specific competencies during this period."
+            ),
+            DT::DTOutput("milestone_descriptions_table")
           )
         ),
 
-        # Right column (2/3): Spider plots and descriptions
+        # Right column (2/3): Spider plots
         column(
           width = 8,
           # Three spider plots stacked vertically
           h5("ACGME Milestones (Previous Period)"),
-          plotly::plotlyOutput("plot_acgme_spider", height = "350px"),
+          plotly::plotlyOutput("plot_acgme_spider", height = "450px"),
           br(),
           h5("Program Milestones (Current Period)"),
-          plotly::plotlyOutput("plot_program_spider", height = "350px"),
+          plotly::plotlyOutput("plot_program_spider", height = "450px"),
           br(),
           h5("Self-Evaluation (Current Period)"),
-          plotly::plotlyOutput("plot_self_spider", height = "350px"),
-          br(),
-          hr(),
-          h5("Milestone Descriptions"),
-          p(
-            class = "text-muted",
-            style = "font-size: 0.9em;",
-            "Descriptions and scores for specific competencies during this period."
-          ),
-          DT::DTOutput("milestone_descriptions_table")
+          plotly::plotlyOutput("plot_self_spider", height = "450px")
         )
       ),
       hr(),
@@ -876,19 +877,31 @@ create_server <- function(initial_data) {
           stringsAsFactors = FALSE
         )
 
-        # Add all milestone fields
+        # Add all milestone fields - ensure numeric values
         for (col in milestone_cols) {
           if (col == field_name) {
-            update_data[[col]] <- numeric_value
+            update_data[[col]] <- as.numeric(numeric_value)
           } else if (col %in% names(milestone_entry_data)) {
-            update_data[[col]] <- milestone_entry_data[[col]][1]
+            # Ensure all milestone values are numeric
+            update_data[[col]] <- as.numeric(milestone_entry_data[[col]][1])
           }
         }
 
-        # Add the period field
-        if ("prog_mile_period" %in% names(milestone_entry_data)) {
-          update_data$prog_mile_period <- milestone_entry_data$prog_mile_period[1]
-        }
+        # Add the period field - MUST be raw numeric code for REDCap
+        # Convert period name back to numeric code
+        period_code <- switch(
+          resident_info$current_period,
+          "Mid Intern" = 1,
+          "End Intern" = 2,
+          "Mid PGY2" = 3,
+          "End PGY2" = 4,
+          "Mid PGY3" = 5,
+          "Graduating" = 6,
+          "Entering Residency" = 7,
+          1  # fallback
+        )
+
+        update_data$prog_mile_period <- as.character(period_code)
 
         # Try to save to REDCap
         tryCatch({

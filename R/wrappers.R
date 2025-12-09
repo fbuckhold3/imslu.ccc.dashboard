@@ -232,6 +232,7 @@ get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
 
   descriptions <- data.frame(
     competency = character(),
+    competency_full = character(),
     source = character(),
     score = numeric(),
     description = character(),
@@ -247,6 +248,8 @@ get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
       if (!is.na(program_data[[col]][1]) && nchar(trimws(program_data[[col]][1])) > 0) {
         # Extract competency name (e.g., "rep_pc1_desc" -> "PC1")
         competency <- toupper(gsub("rep_|_desc", "", col))
+        # Get full competency name
+        competency_full <- get_competency_full_name(competency)
         # Get the corresponding value field (e.g., "rep_pc1")
         value_field <- gsub("_desc", "", col)
         score <- if (value_field %in% names(program_data)) {
@@ -257,6 +260,7 @@ get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
 
         descriptions <- rbind(descriptions, data.frame(
           competency = competency,
+          competency_full = competency_full,
           source = "Program",
           score = score,
           description = program_data[[col]][1],
@@ -274,6 +278,8 @@ get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
       if (!is.na(self_data[[col]][1]) && nchar(trimws(self_data[[col]][1])) > 0) {
         # Extract competency name (e.g., "rep_pc1_self_desc" -> "PC1")
         competency <- toupper(gsub("rep_|_self_desc", "", col))
+        # Get full competency name
+        competency_full <- get_competency_full_name(competency)
         # Get the corresponding value field (e.g., "rep_pc1_self")
         value_field <- gsub("_desc", "", col)
         score <- if (value_field %in% names(self_data)) {
@@ -284,6 +290,7 @@ get_milestone_descriptions <- function(rdm_data, record_id, period_name) {
 
         descriptions <- rbind(descriptions, data.frame(
           competency = competency,
+          competency_full = competency_full,
           source = "Self",
           score = score,
           description = self_data[[col]][1],
