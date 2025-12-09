@@ -261,69 +261,93 @@ create_server <- function(initial_data) {
         "Complete the following fields based on the committee's discussion and review of the resident's performance."
       ),
 
+      # Action Data Table
+      h5("Previous Action Items"),
+      DT::DTOutput("action_data_table"),
+      br(),
+
+      # ILP Section
       fluidRow(
         column(
           width = 12,
-          textAreaInput(
-            "ccc_discussion_notes",
-            "CCC Discussion Notes:",
-            value = "",
-            rows = 4,
-            width = "100%",
-            placeholder = "Summarize the key points discussed by the committee..."
+          wellPanel(
+            h5("Individual Learning Plan"),
+            uiOutput("coach_ilp_display"),
+            br(),
+            uiOutput("second_comments_display"),
+            br(),
+            textAreaInput(
+              "ccc_ilp",
+              "CCC ILP:",
+              value = "",
+              rows = 4,
+              width = "100%",
+              placeholder = "Enter CCC Individual Learning Plan..."
+            )
           )
         )
       ),
 
+      # Milestone Discussion
       fluidRow(
         column(
-          width = 6,
-          textAreaInput(
-            "ccc_areas_of_strength",
-            "Areas of Strength:",
-            value = "",
-            rows = 4,
-            width = "100%",
-            placeholder = "Highlight the resident's strengths and positive performance areas..."
-          )
-        ),
-        column(
-          width = 6,
-          textAreaInput(
-            "ccc_areas_of_concern",
-            "Areas of Concern:",
-            value = "",
-            rows = 4,
-            width = "100%",
-            placeholder = "Note any areas requiring improvement or monitoring..."
+          width = 12,
+          wellPanel(
+            h5("Milestone Discussion"),
+            radioButtons(
+              "ccc_mile",
+              "Discuss Milestones?",
+              choices = c("No" = "0", "Yes" = "1"),
+              selected = "0",
+              inline = TRUE
+            ),
+            uiOutput("milestone_discussion_content")
           )
         )
       ),
 
+      # Follow-up Issues
       fluidRow(
         column(
           width = 12,
-          textAreaInput(
-            "ccc_recommendations",
-            "CCC Recommendations:",
-            value = "",
-            rows = 4,
-            width = "100%",
-            placeholder = "Provide specific recommendations for the resident's continued development..."
+          wellPanel(
+            h5("Follow-up Issues"),
+            radioButtons(
+              "ccc_issues_yn",
+              "Any Follow-up Issues?",
+              choices = c("No" = "0", "Yes" = "1"),
+              selected = "0",
+              inline = TRUE
+            ),
+            conditionalPanel(
+              condition = "input.ccc_issues_yn == '1'",
+              textAreaInput(
+                "ccc_issues_follow_up",
+                "Describe Follow-up Issues:",
+                value = "",
+                rows = 3,
+                width = "100%",
+                placeholder = "Describe any issues requiring follow-up..."
+              )
+            )
           )
         )
       ),
 
+      # Concerns
       fluidRow(
         column(
           width = 12,
-          textAreaInput(
-            "ccc_action_items",
-            "Action Items / Follow-up:",
-            value = "",
-            rows = 3,
-            width = "100%",
-            placeholder = "List any specific action items or follow-up required..."
+          wellPanel(
+            h5("Concerns"),
+            radioButtons(
+              "ccc_concern",
+              "Any Concerns?",
+              choices = c("No" = "0", "Yes" = "1"),
+              selected = "0",
+              inline = TRUE
+            ),
+            uiOutput("concern_content")
           )
         )
       ),
@@ -349,6 +373,173 @@ create_server <- function(initial_data) {
     )
   })
 
+  # Action Data Table
+  output$action_data_table <- DT::renderDT({
+    rid <- selected_resident_id()
+    req(rid)
+
+    action_data <- get_action_data_table(app_data(), rid)
+
+    DT::datatable(
+      action_data,
+      options = list(
+        pageLength = 5,
+        dom = 't',
+        ordering = TRUE,
+        searching = FALSE
+      ),
+      rownames = FALSE,
+      selection = 'none'
+    )
+  })
+
+  # Coach ILP Display
+  output$coach_ilp_display <- renderUI({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    coach_data <- get_coach_review_data(
+      app_data(),
+      rid,
+      resident_info$current_period
+    )
+
+    if (nrow(coach_data) == 0 || is.na(coach_data$coach_ilp_final[1]) || nchar(trimws(coach_data$coach_ilp_final[1])) == 0) {
+      return(p(
+        class = "text-muted",
+        icon("info-circle"),
+        " No coach ILP available for this period"
+      ))
+    }
+
+    div(
+      p(strong("Coach ILP:")),
+      p(coach_data$coach_ilp_final[1])
+    )
+  })
+
+  # Second Comments Display
+  output$second_comments_display <- renderUI({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    second_data <- get_second_review_data(
+      app_data(),
+      rid,
+      resident_info$current_period
+    )
+
+    if (nrow(second_data) == 0 || is.na(second_data$second_comments[1]) || nchar(trimws(second_data$second_comments[1])) == 0) {
+      return(p(
+        class = "text-muted",
+        icon("info-circle"),
+        " No second review comments available for this period"
+      ))
+    }
+
+    div(
+      p(strong("Second Review Comments:")),
+      p(second_data$second_comments[1])
+    )
+  })
+
+  # Milestone Discussion Content
+  output$milestone_discussion_content <- renderUI({
+    req(input$ccc_mile)
+
+    if (input$ccc_mile == "0") {
+      return(NULL)
+    }
+
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    second_data <- get_second_review_data(
+      app_data(),
+      rid,
+      resident_info$current_period
+    )
+
+    tagList(
+      if (nrow(second_data) > 0 && "second_approve" %in% names(second_data)) {
+        if (!is.na(second_data$second_approve[1]) && second_data$second_approve[1] == "1") {
+          div(
+            p(strong("Second Reviewer Approved Milestones:"), " Yes")
+          )
+        } else if (!is.na(second_data$second_miles_comment[1]) && nchar(trimws(second_data$second_miles_comment[1])) > 0) {
+          div(
+            p(strong("Second Reviewer Milestone Comments:")),
+            p(second_data$second_miles_comment[1])
+          )
+        }
+      },
+      br(),
+      textAreaInput(
+        "ccc_mile_notes",
+        "CCC Milestone Notes:",
+        value = "",
+        rows = 3,
+        width = "100%",
+        placeholder = "Enter notes about milestone discussion..."
+      )
+    )
+  })
+
+  # Concern Content
+  output$concern_content <- renderUI({
+    req(input$ccc_concern)
+
+    if (input$ccc_concern == "0") {
+      return(NULL)
+    }
+
+    # Get checkbox choices from data dictionary
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency")
+    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
+    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
+
+    tagList(
+      textAreaInput(
+        "ccc_comments",
+        "CCC Comments:",
+        value = "",
+        rows = 3,
+        width = "100%",
+        placeholder = "Describe the concerns..."
+      ),
+      checkboxGroupInput(
+        "ccc_competency",
+        "Competency Areas:",
+        choices = competency_choices,
+        selected = NULL
+      ),
+      checkboxGroupInput(
+        "ccc_action",
+        "Action Required:",
+        choices = action_choices,
+        selected = NULL
+      ),
+      checkboxGroupInput(
+        "ccc_action_status",
+        "Action Status:",
+        choices = status_choices,
+        selected = NULL
+      )
+    )
+  })
+
   # Coach Review Summary
   output$coach_review_summary <- renderUI({
     rid <- selected_resident_id()
@@ -358,7 +549,7 @@ create_server <- function(initial_data) {
       filter(record_id == rid) %>%
       slice(1)
 
-    coach_data <- get_resident_coach_review(
+    coach_data <- get_coach_review_data(
       app_data(),
       rid,
       resident_info$current_period
@@ -373,28 +564,15 @@ create_server <- function(initial_data) {
     }
 
     # Display key fields from coach review
-    # Field names may vary - adapt based on actual REDCap form
     tagList(
-      if ("coach_strengths" %in% names(coach_data) && !is.na(coach_data$coach_strengths[1])) {
+      if ("coach_ilp_final" %in% names(coach_data) && !is.na(coach_data$coach_ilp_final[1])) {
         div(
-          p(strong("Strengths:")),
-          p(coach_data$coach_strengths[1])
+          p(strong("Coach ILP:")),
+          p(coach_data$coach_ilp_final[1])
         )
       },
-      if ("coach_concerns" %in% names(coach_data) && !is.na(coach_data$coach_concerns[1])) {
-        div(
-          p(strong("Concerns:")),
-          p(coach_data$coach_concerns[1])
-        )
-      },
-      if ("coach_recommendations" %in% names(coach_data) && !is.na(coach_data$coach_recommendations[1])) {
-        div(
-          p(strong("Recommendations:")),
-          p(coach_data$coach_recommendations[1])
-        )
-      },
-      # Fallback: show completion status if no specific fields available
-      if (!any(c("coach_strengths", "coach_concerns", "coach_recommendations") %in% names(coach_data))) {
+      # Fallback: show completion status
+      if (!("coach_ilp_final" %in% names(coach_data))) {
         p(
           icon("check", class = "text-success"),
           " Coach review completed for ", resident_info$current_period
@@ -412,7 +590,7 @@ create_server <- function(initial_data) {
       filter(record_id == rid) %>%
       slice(1)
 
-    second_data <- get_resident_second_review(
+    second_data <- get_second_review_data(
       app_data(),
       rid,
       resident_info$current_period
@@ -427,28 +605,27 @@ create_server <- function(initial_data) {
     }
 
     # Display key fields from second review
-    # Field names may vary - adapt based on actual REDCap form
     tagList(
-      if ("second_strengths" %in% names(second_data) && !is.na(second_data$second_strengths[1])) {
+      if ("second_comments" %in% names(second_data) && !is.na(second_data$second_comments[1])) {
         div(
-          p(strong("Strengths:")),
-          p(second_data$second_strengths[1])
+          p(strong("Comments:")),
+          p(second_data$second_comments[1])
         )
       },
-      if ("second_concerns" %in% names(second_data) && !is.na(second_data$second_concerns[1])) {
+      if ("second_approve" %in% names(second_data) && !is.na(second_data$second_approve[1])) {
         div(
-          p(strong("Concerns:")),
-          p(second_data$second_concerns[1])
+          p(strong("Milestones Approved:")),
+          p(if_else(second_data$second_approve[1] == "1", "Yes", "No"))
         )
       },
-      if ("second_recommendations" %in% names(second_data) && !is.na(second_data$second_recommendations[1])) {
+      if ("second_miles_comment" %in% names(second_data) && !is.na(second_data$second_miles_comment[1])) {
         div(
-          p(strong("Recommendations:")),
-          p(second_data$second_recommendations[1])
+          p(strong("Milestone Comments:")),
+          p(second_data$second_miles_comment[1])
         )
       },
       # Fallback: show completion status if no specific fields available
-      if (!any(c("second_strengths", "second_concerns", "second_recommendations") %in% names(second_data))) {
+      if (!any(c("second_comments", "second_approve", "second_miles_comment") %in% names(second_data))) {
         p(
           icon("check", class = "text-success"),
           " Second review completed for ", resident_info$current_period
@@ -734,25 +911,75 @@ create_server <- function(initial_data) {
       filter(record_id == rid) %>%
       slice(1)
 
-    # Collect form data
+    # Convert period name to code for REDCap
+    period_code <- switch(
+      resident_info$current_period,
+      "Mid Intern" = 1,
+      "End Intern" = 2,
+      "Mid PGY2" = 3,
+      "End PGY2" = 4,
+      "Mid PGY3" = 5,
+      "Graduating" = 6,
+      "Entering Residency" = 7,
+      1  # fallback
+    )
+
+    # Determine review type (semi-annual vs ad hoc)
+    review_type <- if (resident_info$current_period %in% c("Mid Intern", "End Intern", "Mid PGY2", "End PGY2", "Mid PGY3", "Graduating")) {
+      "1"  # Semi-annual
+    } else {
+      "2"  # Ad hoc
+    }
+
+    # Build base data frame
     ccc_data <- data.frame(
-      record_id = rid,
+      record_id = as.character(rid),
       redcap_repeat_instrument = "ccc_review",
       redcap_repeat_instance = NA,  # REDCap will auto-assign
-      ccc_session = resident_info$current_period,
-      ccc_discussion_notes = input$ccc_discussion_notes,
-      ccc_areas_of_strength = input$ccc_areas_of_strength,
-      ccc_areas_of_concern = input$ccc_areas_of_concern,
-      ccc_recommendations = input$ccc_recommendations,
-      ccc_action_items = input$ccc_action_items,
-      ccc_review_complete = 2,  # Complete status
+      ccc_date = as.character(Sys.Date()),
+      ccc_review_type = review_type,
+      ccc_session = as.character(period_code),
+      ccc_ilp = if (!is.null(input$ccc_ilp)) as.character(input$ccc_ilp) else "",
+      ccc_mile = if (!is.null(input$ccc_mile)) as.character(input$ccc_mile) else "0",
+      ccc_mile_notes = if (!is.null(input$ccc_mile_notes)) as.character(input$ccc_mile_notes) else "",
+      ccc_issues_follow_up = if (!is.null(input$ccc_issues_follow_up)) as.character(input$ccc_issues_follow_up) else "",
+      ccc_concern = if (!is.null(input$ccc_concern)) as.character(input$ccc_concern) else "0",
+      ccc_comments = if (!is.null(input$ccc_comments)) as.character(input$ccc_comments) else "",
+      ccc_review_complete = "2",  # Complete status
       stringsAsFactors = FALSE
     )
 
+    # Handle checkbox fields - ccc_competency
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency")
+    if (length(competency_choices) > 0) {
+      for (code in names(competency_choices)) {
+        col_name <- paste0("ccc_competency___", code)
+        ccc_data[[col_name]] <- if (!is.null(input$ccc_competency) && code %in% input$ccc_competency) "1" else "0"
+      }
+    }
+
+    # Handle checkbox fields - ccc_action
+    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
+    if (length(action_choices) > 0) {
+      for (code in names(action_choices)) {
+        col_name <- paste0("ccc_action___", code)
+        ccc_data[[col_name]] <- if (!is.null(input$ccc_action) && code %in% input$ccc_action) "1" else "0"
+      }
+    }
+
+    # Handle checkbox fields - ccc_action_status
+    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
+    if (length(status_choices) > 0) {
+      for (code in names(status_choices)) {
+        col_name <- paste0("ccc_action_status___", code)
+        ccc_data[[col_name]] <- if (!is.null(input$ccc_action_status) && code %in% input$ccc_action_status) "1" else "0"
+      }
+    }
+
     # Validate required fields
-    if (nchar(trimws(input$ccc_discussion_notes)) == 0) {
+    if (nchar(trimws(input$ccc_ilp)) == 0) {
       showNotification(
-        "Please enter discussion notes before submitting.",
+        "Please enter CCC ILP before submitting.",
         type = "warning",
         duration = 5
       )
@@ -786,6 +1013,15 @@ create_server <- function(initial_data) {
             duration = 5
           )
         })
+
+        # Clear form inputs
+        updateTextAreaInput(session, "ccc_ilp", value = "")
+        updateRadioButtons(session, "ccc_mile", selected = "0")
+        updateTextAreaInput(session, "ccc_mile_notes", value = "")
+        updateRadioButtons(session, "ccc_issues_yn", selected = "0")
+        updateTextAreaInput(session, "ccc_issues_follow_up", value = "")
+        updateRadioButtons(session, "ccc_concern", selected = "0")
+        updateTextAreaInput(session, "ccc_comments", value = "")
 
         # Return to list view
         show_list_view(TRUE)
@@ -1028,20 +1264,305 @@ create_server <- function(initial_data) {
       ),
       hr(),
 
-      h4("Ad Hoc Review Notes"),
-      p(em("Ad hoc review interface will be added here")),
-      textAreaInput(
-        "adhoc_notes",
-        "Discussion Notes:",
-        rows = 5,
-        width = "100%"
+      h4("Ad Hoc Review Form"),
+
+      # Action Data Table for Ad Hoc
+      h5("Previous Action Items"),
+      DT::DTOutput("adhoc_action_data_table"),
+      br(),
+
+      # Interim Update
+      fluidRow(
+        column(
+          width = 12,
+          wellPanel(
+            h5("Interim Update"),
+            textAreaInput(
+              "adhoc_ccc_interim",
+              "Interim Notes:",
+              value = "",
+              rows = 4,
+              width = "100%",
+              placeholder = "Enter interim update notes..."
+            )
+          )
+        )
       ),
+
+      # ILP Section
+      fluidRow(
+        column(
+          width = 12,
+          wellPanel(
+            h5("Individual Learning Plan"),
+            textAreaInput(
+              "adhoc_ccc_ilp",
+              "CCC ILP:",
+              value = "",
+              rows = 4,
+              width = "100%",
+              placeholder = "Enter CCC Individual Learning Plan..."
+            )
+          )
+        )
+      ),
+
+      # Follow-up Issues
+      fluidRow(
+        column(
+          width = 12,
+          wellPanel(
+            h5("Follow-up Issues"),
+            radioButtons(
+              "adhoc_ccc_issues_yn",
+              "Any Follow-up Issues?",
+              choices = c("No" = "0", "Yes" = "1"),
+              selected = "0",
+              inline = TRUE
+            ),
+            conditionalPanel(
+              condition = "input.adhoc_ccc_issues_yn == '1'",
+              textAreaInput(
+                "adhoc_ccc_issues_follow_up",
+                "Describe Follow-up Issues:",
+                value = "",
+                rows = 3,
+                width = "100%",
+                placeholder = "Describe any issues requiring follow-up..."
+              )
+            )
+          )
+        )
+      ),
+
+      # Concerns
+      fluidRow(
+        column(
+          width = 12,
+          wellPanel(
+            h5("Concerns"),
+            radioButtons(
+              "adhoc_ccc_concern",
+              "Any Concerns?",
+              choices = c("No" = "0", "Yes" = "1"),
+              selected = "0",
+              inline = TRUE
+            ),
+            uiOutput("adhoc_concern_content")
+          )
+        )
+      ),
+
+      br(),
+
       actionButton(
-        "save_adhoc_notes",
-        "Save Notes",
-        class = "btn-primary"
+        "submit_adhoc_review",
+        "Submit Ad Hoc Review",
+        class = "btn-primary btn-lg",
+        icon = icon("check")
       )
     )
+  })
+
+  # Ad Hoc Action Data Table
+  output$adhoc_action_data_table <- DT::renderDT({
+    req(input$adhoc_resident)
+
+    action_data <- get_action_data_table(app_data(), input$adhoc_resident)
+
+    DT::datatable(
+      action_data,
+      options = list(
+        pageLength = 5,
+        dom = 't',
+        ordering = TRUE,
+        searching = FALSE
+      ),
+      rownames = FALSE,
+      selection = 'none'
+    )
+  })
+
+  # Ad Hoc Concern Content
+  output$adhoc_concern_content <- renderUI({
+    req(input$adhoc_ccc_concern)
+
+    if (input$adhoc_ccc_concern == "0") {
+      return(NULL)
+    }
+
+    # Get checkbox choices from data dictionary
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency")
+    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
+    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
+
+    tagList(
+      textAreaInput(
+        "adhoc_ccc_comments",
+        "CCC Comments:",
+        value = "",
+        rows = 3,
+        width = "100%",
+        placeholder = "Describe the concerns..."
+      ),
+      checkboxGroupInput(
+        "adhoc_ccc_competency",
+        "Competency Areas:",
+        choices = competency_choices,
+        selected = NULL
+      ),
+      checkboxGroupInput(
+        "adhoc_ccc_action",
+        "Action Required:",
+        choices = action_choices,
+        selected = NULL
+      ),
+      checkboxGroupInput(
+        "adhoc_ccc_action_status",
+        "Action Status:",
+        choices = status_choices,
+        selected = NULL
+      )
+    )
+  })
+
+  # Submit Ad Hoc Review
+  observeEvent(input$submit_adhoc_review, {
+    req(input$adhoc_resident)
+
+    # Get resident info
+    resident_info <- app_data()$residents %>%
+      filter(record_id == input$adhoc_resident) %>%
+      slice(1)
+
+    # Convert period name to code for REDCap
+    period_code <- switch(
+      resident_info$current_period,
+      "Mid Intern" = 1,
+      "End Intern" = 2,
+      "Mid PGY2" = 3,
+      "End PGY2" = 4,
+      "Mid PGY3" = 5,
+      "Graduating" = 6,
+      "Entering Residency" = 7,
+      1  # fallback
+    )
+
+    # Ad hoc review type
+    review_type <- "2"  # Ad hoc
+
+    # Build base data frame
+    ccc_data <- data.frame(
+      record_id = as.character(input$adhoc_resident),
+      redcap_repeat_instrument = "ccc_review",
+      redcap_repeat_instance = NA,  # REDCap will auto-assign
+      ccc_date = as.character(Sys.Date()),
+      ccc_review_type = review_type,
+      ccc_session = as.character(period_code),
+      ccc_interim = if (!is.null(input$adhoc_ccc_interim)) as.character(input$adhoc_ccc_interim) else "",
+      ccc_ilp = if (!is.null(input$adhoc_ccc_ilp)) as.character(input$adhoc_ccc_ilp) else "",
+      ccc_mile = "0",  # Not applicable for ad hoc
+      ccc_mile_notes = "",
+      ccc_issues_follow_up = if (!is.null(input$adhoc_ccc_issues_follow_up)) as.character(input$adhoc_ccc_issues_follow_up) else "",
+      ccc_concern = if (!is.null(input$adhoc_ccc_concern)) as.character(input$adhoc_ccc_concern) else "0",
+      ccc_comments = if (!is.null(input$adhoc_ccc_comments)) as.character(input$adhoc_ccc_comments) else "",
+      ccc_review_complete = "2",  # Complete status
+      stringsAsFactors = FALSE
+    )
+
+    # Handle checkbox fields - ccc_competency
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency")
+    if (length(competency_choices) > 0) {
+      for (code in names(competency_choices)) {
+        col_name <- paste0("ccc_competency___", code)
+        ccc_data[[col_name]] <- if (!is.null(input$adhoc_ccc_competency) && code %in% input$adhoc_ccc_competency) "1" else "0"
+      }
+    }
+
+    # Handle checkbox fields - ccc_action
+    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
+    if (length(action_choices) > 0) {
+      for (code in names(action_choices)) {
+        col_name <- paste0("ccc_action___", code)
+        ccc_data[[col_name]] <- if (!is.null(input$adhoc_ccc_action) && code %in% input$adhoc_ccc_action) "1" else "0"
+      }
+    }
+
+    # Handle checkbox fields - ccc_action_status
+    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
+    if (length(status_choices) > 0) {
+      for (code in names(status_choices)) {
+        col_name <- paste0("ccc_action_status___", code)
+        ccc_data[[col_name]] <- if (!is.null(input$adhoc_ccc_action_status) && code %in% input$adhoc_ccc_action_status) "1" else "0"
+      }
+    }
+
+    # Validate required fields
+    if (nchar(trimws(input$adhoc_ccc_interim)) == 0 && nchar(trimws(input$adhoc_ccc_ilp)) == 0) {
+      showNotification(
+        "Please enter either interim notes or CCC ILP before submitting.",
+        type = "warning",
+        duration = 5
+      )
+      return()
+    }
+
+    # Try to save to REDCap
+    tryCatch({
+      # Use REDCapR to write data
+      result <- REDCapR::redcap_write(
+        ds_to_write = ccc_data,
+        redcap_uri = REDCAP_CONFIG$url,
+        token = REDCAP_CONFIG$rdm_token
+      )
+
+      if (result$success) {
+        showNotification(
+          paste("Ad Hoc Review saved successfully for", resident_info$full_name),
+          type = "message",
+          duration = 5
+        )
+
+        # Refresh data
+        tryCatch({
+          new_data <- load_ccc_data()
+          app_data(new_data)
+        }, error = function(e) {
+          showNotification(
+            "Review saved, but could not refresh data. Please use Refresh Data button.",
+            type = "warning",
+            duration = 5
+          )
+        })
+
+        # Clear form inputs
+        updateTextAreaInput(session, "adhoc_ccc_interim", value = "")
+        updateTextAreaInput(session, "adhoc_ccc_ilp", value = "")
+        updateRadioButtons(session, "adhoc_ccc_issues_yn", selected = "0")
+        updateTextAreaInput(session, "adhoc_ccc_issues_follow_up", value = "")
+        updateRadioButtons(session, "adhoc_ccc_concern", selected = "0")
+        updateTextAreaInput(session, "adhoc_ccc_comments", value = "")
+
+        showNotification(
+          "Form cleared. You can now review another resident.",
+          type = "message",
+          duration = 3
+        )
+
+      } else {
+        showNotification(
+          paste("Error saving review:", result$outcome_message),
+          type = "error",
+          duration = 10
+        )
+      }
+    }, error = function(e) {
+      showNotification(
+        paste("Error saving ad hoc review:", e$message),
+        type = "error",
+        duration = 10
+      )
+    })
   })
 
   # ===========================================================================

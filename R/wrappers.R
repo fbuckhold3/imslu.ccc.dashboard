@@ -356,3 +356,113 @@ get_milestone_values_for_edit <- function(rdm_data, record_id, period_name) {
 
   return(milestone_values)
 }
+
+#' Get Coach Review Data
+#'
+#' Gets coach review data for a resident and period
+#' @param rdm_data List containing all data
+#' @param record_id Resident record ID
+#' @param period_name Period name
+#' @return Data frame with coach review data (single row or empty)
+get_coach_review_data <- function(rdm_data, record_id, period_name) {
+  get_form_data_for_period(
+    rdm_data$all_forms,
+    "coach_rev",
+    record_id,
+    period_name
+  )
+}
+
+#' Get Second Review Data
+#'
+#' Gets second review data for a resident and period
+#' @param rdm_data List containing all data
+#' @param record_id Resident record ID
+#' @param period_name Period name
+#' @return Data frame with second review data (single row or empty)
+get_second_review_data <- function(rdm_data, record_id, period_name) {
+  get_form_data_for_period(
+    rdm_data$all_forms,
+    "second_review",
+    record_id,
+    period_name
+  )
+}
+
+#' Get CCC Review Data
+#'
+#' Gets CCC review data for a resident and period
+#' @param rdm_data List containing all data
+#' @param record_id Resident record ID
+#' @param period_name Period name
+#' @return Data frame with CCC review data (single row or empty)
+get_ccc_review_data <- function(rdm_data, record_id, period_name) {
+  get_form_data_for_period(
+    rdm_data$all_forms,
+    "ccc_review",
+    record_id,
+    period_name
+  )
+}
+
+#' Get Action Data Table
+#'
+#' Gets all CCC action data (concerns and issues) for a resident
+#' @param rdm_data List containing all data
+#' @param record_id Resident record ID
+#' @return Data frame with all action items
+get_action_data_table <- function(rdm_data, record_id) {
+
+  if (is.null(rdm_data$all_forms$ccc_review)) {
+    return(data.frame(
+      Date = character(),
+      Session = character(),
+      Type = character(),
+      Issues = character(),
+      Comments = character(),
+      Competency = character(),
+      Action = character(),
+      Status = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Get all CCC reviews for this resident
+  ccc_data <- rdm_data$all_forms$ccc_review %>%
+    filter(record_id == !!record_id, redcap_repeat_instrument == "ccc_review")
+
+  if (nrow(ccc_data) == 0) {
+    return(data.frame(
+      Date = character(),
+      Session = character(),
+      Type = character(),
+      Issues = character(),
+      Comments = character(),
+      Competency = character(),
+      Action = character(),
+      Status = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Filter for rows that have either concern or issues follow up
+  action_data <- ccc_data %>%
+    filter(
+      (!is.na(ccc_concern) & ccc_concern == "1") |
+      (!is.na(ccc_issues_follow_up) & nchar(trimws(ccc_issues_follow_up)) > 0)
+    ) %>%
+    mutate(
+      Date = if_else(!is.na(ccc_date), as.character(ccc_date), ""),
+      Session = if_else(!is.na(ccc_session), as.character(ccc_session), ""),
+      Type = if_else(!is.na(ccc_review_type), as.character(ccc_review_type), ""),
+      Issues = if_else(!is.na(ccc_issues_follow_up), as.character(ccc_issues_follow_up), ""),
+      Comments = if_else(!is.na(ccc_comments), as.character(ccc_comments), ""),
+      Competency = if_else(!is.na(ccc_competency), as.character(ccc_competency), ""),
+      Action = if_else(!is.na(ccc_action), as.character(ccc_action), ""),
+      Status = if_else(!is.na(ccc_action_status), as.character(ccc_action_status), "")
+    ) %>%
+    select(Date, Session, Type, Issues, Comments, Competency, Action, Status) %>%
+    arrange(desc(Date))
+
+  return(action_data)
+}

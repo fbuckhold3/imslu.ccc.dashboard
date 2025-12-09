@@ -123,3 +123,81 @@ get_competency_full_name <- function(competency) {
     return(competency)
   }
 }
+
+#' Parse Data Dictionary Choices
+#'
+#' Parses the select_choices_or_calculations field from REDCap data dictionary
+#' @param choices_string String from data dictionary (format: "1, Label 1 | 2, Label 2")
+#' @return Named vector where names are codes and values are labels
+parse_data_dict_choices <- function(choices_string) {
+  if (is.na(choices_string) || nchar(trimws(choices_string)) == 0) {
+    return(character(0))
+  }
+
+  # Split by pipe delimiter
+  choice_pairs <- strsplit(choices_string, "\\|")[[1]]
+
+  choices <- character(0)
+  for (pair in choice_pairs) {
+    # Split by first comma
+    parts <- strsplit(trimws(pair), ",", fixed = TRUE)[[1]]
+    if (length(parts) >= 2) {
+      code <- trimws(parts[1])
+      label <- trimws(paste(parts[-1], collapse = ","))
+      choices[code] <- label
+    }
+  }
+
+  return(choices)
+}
+
+#' Get Field Choices from Data Dictionary
+#'
+#' Gets choices for a specific field from the data dictionary
+#' @param data_dict Data dictionary data frame
+#' @param field_name Name of the field
+#' @return Named vector of choices (codes as names, labels as values)
+get_field_choices <- function(data_dict, field_name) {
+  if (is.null(data_dict) || !field_name %in% data_dict$field_name) {
+    return(character(0))
+  }
+
+  field_info <- data_dict %>%
+    filter(field_name == !!field_name) %>%
+    slice(1)
+
+  if (nrow(field_info) == 0 || is.na(field_info$select_choices_or_calculations)) {
+    return(character(0))
+  }
+
+  parse_data_dict_choices(field_info$select_choices_or_calculations)
+}
+
+#' Translate Checkbox Values to Labels
+#'
+#' Translates REDCap checkbox field values (multiple checked) to readable labels
+#' @param data_dict Data dictionary data frame
+#' @param field_name Base field name (without ___N suffix)
+#' @param checked_cols Vector of column names that are checked (value = "1")
+#' @return Comma-separated string of labels
+translate_checkbox_values <- function(data_dict, field_name, checked_cols) {
+  # Get choices from data dictionary
+  choices <- get_field_choices(data_dict, field_name)
+
+  if (length(choices) == 0 || length(checked_cols) == 0) {
+    return("")
+  }
+
+  # Extract codes from column names (e.g., "ccc_competency___1" -> "1")
+  codes <- gsub(paste0(field_name, "___"), "", checked_cols)
+
+  # Get labels for checked codes
+  labels <- choices[codes]
+  labels <- labels[!is.na(labels)]
+
+  if (length(labels) == 0) {
+    return("")
+  }
+
+  paste(labels, collapse = ", ")
+}
