@@ -1578,12 +1578,20 @@ create_server <- function(initial_data) {
       residents <- get_resident_list(app_data())
     } else if (input$admin_view == "mid") {
       review_table <- get_ccc_review_table(app_data(), "Mid Year")
+      # Join with full resident data to get type and grad_yr
       residents <- review_table %>%
-        select(record_id, full_name = resident, current_period = level)
+        select(record_id) %>%
+        left_join(app_data()$residents %>%
+                   select(record_id, full_name, type, grad_yr, current_period),
+                 by = "record_id")
     } else {
       review_table <- get_ccc_review_table(app_data(), "End Year")
+      # Join with full resident data to get type and grad_yr
       residents <- review_table %>%
-        select(record_id, full_name = resident, current_period = level)
+        select(record_id) %>%
+        left_join(app_data()$residents %>%
+                   select(record_id, full_name, type, grad_yr, current_period),
+                 by = "record_id")
     }
 
     if (nrow(residents) == 0) {
