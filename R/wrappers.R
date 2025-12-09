@@ -446,23 +446,74 @@ get_action_data_table <- function(rdm_data, record_id) {
   }
 
   # Filter for rows that have either concern or issues follow up
-  action_data <- ccc_data %>%
-    filter(
-      (!is.na(ccc_concern) & ccc_concern == "1") |
-      (!is.na(ccc_issues_follow_up) & nchar(trimws(ccc_issues_follow_up)) > 0)
-    ) %>%
-    mutate(
-      Date = if_else(!is.na(ccc_date), as.character(ccc_date), ""),
-      Session = if_else(!is.na(ccc_session), as.character(ccc_session), ""),
-      Type = if_else(!is.na(ccc_review_type), as.character(ccc_review_type), ""),
-      Issues = if_else(!is.na(ccc_issues_follow_up), as.character(ccc_issues_follow_up), ""),
-      Comments = if_else(!is.na(ccc_comments), as.character(ccc_comments), ""),
-      Competency = if_else(!is.na(ccc_competency), as.character(ccc_competency), ""),
-      Action = if_else(!is.na(ccc_action), as.character(ccc_action), ""),
-      Status = if_else(!is.na(ccc_action_status), as.character(ccc_action_status), "")
-    ) %>%
-    select(Date, Session, Type, Issues, Comments, Competency, Action, Status) %>%
-    arrange(desc(Date))
+  # Check if required fields exist
+  has_concern <- "ccc_concern" %in% names(ccc_data)
+  has_issues <- "ccc_issues_follow_up" %in% names(ccc_data)
 
-  return(action_data)
+  if (!has_concern && !has_issues) {
+    # No relevant fields exist, return empty
+    return(data.frame(
+      Date = character(),
+      Session = character(),
+      Type = character(),
+      Issues = character(),
+      Comments = character(),
+      Competency = character(),
+      Action = character(),
+      Status = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Filter for rows with concerns or issues
+  if (has_concern && has_issues) {
+    action_data <- ccc_data %>%
+      filter(
+        (!is.na(ccc_concern) & ccc_concern == "1") |
+        (!is.na(ccc_issues_follow_up) & nchar(trimws(ccc_issues_follow_up)) > 0)
+      )
+  } else if (has_concern) {
+    action_data <- ccc_data %>%
+      filter(!is.na(ccc_concern) & ccc_concern == "1")
+  } else {
+    action_data <- ccc_data %>%
+      filter(!is.na(ccc_issues_follow_up) & nchar(trimws(ccc_issues_follow_up)) > 0)
+  }
+
+  if (nrow(action_data) == 0) {
+    return(data.frame(
+      Date = character(),
+      Session = character(),
+      Type = character(),
+      Issues = character(),
+      Comments = character(),
+      Competency = character(),
+      Action = character(),
+      Status = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  # Build output data frame with safe column access
+  result <- data.frame(
+    Date = if ("ccc_date" %in% names(action_data)) as.character(action_data$ccc_date) else "",
+    Session = if ("ccc_session" %in% names(action_data)) as.character(action_data$ccc_session) else "",
+    Type = if ("ccc_review_type" %in% names(action_data)) as.character(action_data$ccc_review_type) else "",
+    Issues = if ("ccc_issues_follow_up" %in% names(action_data)) as.character(action_data$ccc_issues_follow_up) else "",
+    Comments = if ("ccc_comments" %in% names(action_data)) as.character(action_data$ccc_comments) else "",
+    Competency = if ("ccc_competency" %in% names(action_data)) as.character(action_data$ccc_competency) else "",
+    Action = if ("ccc_action" %in% names(action_data)) as.character(action_data$ccc_action) else "",
+    Status = if ("ccc_action_status" %in% names(action_data)) as.character(action_data$ccc_action_status) else "",
+    stringsAsFactors = FALSE
+  )
+
+  # Replace NA with empty strings
+  result[is.na(result)] <- ""
+
+  # Sort by date if available
+  if ("ccc_date" %in% names(action_data) && any(nchar(result$Date) > 0)) {
+    result <- result %>% arrange(desc(Date))
+  }
+
+  return(result)
 }
