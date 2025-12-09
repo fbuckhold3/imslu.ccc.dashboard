@@ -475,13 +475,15 @@ create_server <- function(initial_data) {
     if (nrow(descriptions) == 0) {
       descriptions <- data.frame(
         Competency = "No descriptions available",
+        "Full Name" = "",
         Source = "",
         Score = NA,
         Description = "",
-        stringsAsFactors = FALSE
+        stringsAsFactors = FALSE,
+        check.names = FALSE
       )
     } else {
-      names(descriptions) <- c("Competency", "Source", "Score", "Description")
+      names(descriptions) <- c("Competency", "Full Name", "Source", "Score", "Description")
     }
 
     DT::datatable(
@@ -525,7 +527,7 @@ create_server <- function(initial_data) {
       display_data <- data.frame(
         Subcompetency = sapply(milestone_values$competency, get_competency_full_name),
         Value = milestone_values$value,
-        Image = paste0('<a href="#" onclick="showImage(\'', milestone_values$competency, '.png\'); return false;">View</a>'),
+        Image = paste0('<a href="#" onclick="showImage(\'milestones/', tolower(milestone_values$competency), '.png\'); return false;">View</a>'),
         stringsAsFactors = FALSE
       )
       editable <- TRUE
