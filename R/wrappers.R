@@ -501,38 +501,60 @@ get_action_data_table <- function(rdm_data, record_id) {
   for (i in 1:nrow(action_data)) {
     row <- action_data[i, ]
 
+    message("DEBUG: Processing row ", i)
+    message("DEBUG: Column names in row: ", paste(names(row), collapse = ", "))
+
     # Helper function to get checkbox labels for a field
     get_checkbox_labels <- function(field_base_name) {
+      message("DEBUG: Checking checkbox field: ", field_base_name)
       # First, check for individual checkbox columns (field___1, field___2, etc.)
       checkbox_cols <- grep(paste0("^", field_base_name, "___"), names(row), value = TRUE)
+      message("DEBUG: Found ", length(checkbox_cols), " checkbox columns for ", field_base_name)
+      if (length(checkbox_cols) > 0) {
+        message("DEBUG: Checkbox columns: ", paste(checkbox_cols, collapse = ", "))
+      }
 
       if (length(checkbox_cols) > 0) {
         # New format: individual checkbox columns
         checked <- c()
         for (col in checkbox_cols) {
-          if (!is.na(row[[col]]) && as.character(row[[col]]) == "1") {
+          col_value <- row[[col]]
+          message("DEBUG: Column ", col, " has value: ", col_value)
+          if (!is.na(col_value) && as.character(col_value) == "1") {
             checked <- c(checked, col)
+            message("DEBUG: Column ", col, " is checked")
           }
         }
-        return(translate_checkbox_values(rdm_data$data_dict, field_base_name, checked))
+        message("DEBUG: Checked columns: ", paste(checked, collapse = ", "))
+        message("DEBUG: Calling translate_checkbox_values for ", field_base_name)
+        result <- translate_checkbox_values(rdm_data$data_dict, field_base_name, checked)
+        message("DEBUG: Translation result: ", result)
+        return(result)
       } else if (field_base_name %in% names(row)) {
         # Old format: single field with comma-separated codes
+        message("DEBUG: Using fallback - checking field ", field_base_name)
         codes_str <- as.character(row[[field_base_name]])
+        message("DEBUG: Field value: ", codes_str)
         if (!is.na(codes_str) && nchar(trimws(codes_str)) > 0) {
           # Split comma-separated codes
           codes <- trimws(strsplit(codes_str, ",")[[1]])
+          message("DEBUG: Parsed codes: ", paste(codes, collapse = ", "))
           if (length(codes) > 0) {
             # Get choices from data dictionary
             choices <- get_field_choices(rdm_data$data_dict, field_base_name)
+            message("DEBUG: Available choices: ", paste(names(choices), "=", choices, collapse = "; "))
             if (length(choices) > 0) {
               labels <- choices[codes]
               labels <- labels[!is.na(labels)]
+              message("DEBUG: Matched labels: ", paste(labels, collapse = ", "))
               if (length(labels) > 0) {
                 return(paste(labels, collapse = ", "))
               }
             }
           }
         }
+      } else {
+        message("DEBUG: Field ", field_base_name, " not found in row")
       }
       return("")
     }
