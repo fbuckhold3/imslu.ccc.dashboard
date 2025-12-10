@@ -931,20 +931,35 @@ create_server <- function(initial_data) {
       "2"  # Ad hoc
     }
 
+    # Calculate next instance number for this resident
+    existing_ccc <- get_ccc_review_data(app_data(), rid, resident_info$current_period)
+    if (nrow(existing_ccc) > 0 && "redcap_repeat_instance" %in% names(existing_ccc)) {
+      next_instance <- max(as.numeric(existing_ccc$redcap_repeat_instance), na.rm = TRUE) + 1
+    } else {
+      # Get all CCC reviews for this resident
+      all_ccc <- app_data()$all_forms$ccc_review %>%
+        filter(record_id == rid, redcap_repeat_instrument == "ccc_review")
+      if (nrow(all_ccc) > 0 && "redcap_repeat_instance" %in% names(all_ccc)) {
+        next_instance <- max(as.numeric(all_ccc$redcap_repeat_instance), na.rm = TRUE) + 1
+      } else {
+        next_instance <- 1
+      }
+    }
+
     # Build base data frame
     ccc_data <- data.frame(
       record_id = as.character(rid),
       redcap_repeat_instrument = "ccc_review",
-      redcap_repeat_instance = NA,  # REDCap will auto-assign
+      redcap_repeat_instance = as.character(next_instance),
       ccc_date = as.character(Sys.Date()),
-      ccc_review_type = review_type,
+      ccc_review_type = as.character(review_type),
       ccc_session = as.character(period_code),
-      ccc_ilp = if (!is.null(input$ccc_ilp)) as.character(input$ccc_ilp) else "",
+      ccc_ilp = if (!is.null(input$ccc_ilp) && nchar(trimws(input$ccc_ilp)) > 0) as.character(input$ccc_ilp) else "",
       ccc_mile = if (!is.null(input$ccc_mile)) as.character(input$ccc_mile) else "0",
-      ccc_mile_notes = if (!is.null(input$ccc_mile_notes)) as.character(input$ccc_mile_notes) else "",
-      ccc_issues_follow_up = if (!is.null(input$ccc_issues_follow_up)) as.character(input$ccc_issues_follow_up) else "",
+      ccc_mile_notes = if (!is.null(input$ccc_mile_notes) && nchar(trimws(input$ccc_mile_notes)) > 0) as.character(input$ccc_mile_notes) else "",
+      ccc_issues_follow_up = if (!is.null(input$ccc_issues_follow_up) && nchar(trimws(input$ccc_issues_follow_up)) > 0) as.character(input$ccc_issues_follow_up) else "",
       ccc_concern = if (!is.null(input$ccc_concern)) as.character(input$ccc_concern) else "0",
-      ccc_comments = if (!is.null(input$ccc_comments)) as.character(input$ccc_comments) else "",
+      ccc_comments = if (!is.null(input$ccc_comments) && nchar(trimws(input$ccc_comments)) > 0) as.character(input$ccc_comments) else "",
       ccc_review_complete = "2",  # Complete status
       stringsAsFactors = FALSE
     )
@@ -977,7 +992,7 @@ create_server <- function(initial_data) {
     }
 
     # Validate required fields
-    if (nchar(trimws(input$ccc_ilp)) == 0) {
+    if (is.null(input$ccc_ilp) || nchar(trimws(input$ccc_ilp)) == 0) {
       showNotification(
         "Please enter CCC ILP before submitting.",
         type = "warning",
@@ -985,6 +1000,15 @@ create_server <- function(initial_data) {
       )
       return()
     }
+
+    # Debug: Print what we're about to submit
+    message("Submitting CCC review data:")
+    message("Record ID: ", rid)
+    message("Instance: ", next_instance)
+    message("Period code: ", period_code)
+    message("Review type: ", review_type)
+    message("Number of columns: ", ncol(ccc_data))
+    message("Column names: ", paste(names(ccc_data), collapse = ", "))
 
     # Try to save to REDCap
     tryCatch({
@@ -1451,21 +1475,30 @@ create_server <- function(initial_data) {
     # Ad hoc review type
     review_type <- "2"  # Ad hoc
 
+    # Calculate next instance number for this resident
+    all_ccc <- app_data()$all_forms$ccc_review %>%
+      filter(record_id == input$adhoc_resident, redcap_repeat_instrument == "ccc_review")
+    if (nrow(all_ccc) > 0 && "redcap_repeat_instance" %in% names(all_ccc)) {
+      next_instance <- max(as.numeric(all_ccc$redcap_repeat_instance), na.rm = TRUE) + 1
+    } else {
+      next_instance <- 1
+    }
+
     # Build base data frame
     ccc_data <- data.frame(
       record_id = as.character(input$adhoc_resident),
       redcap_repeat_instrument = "ccc_review",
-      redcap_repeat_instance = NA,  # REDCap will auto-assign
+      redcap_repeat_instance = as.character(next_instance),
       ccc_date = as.character(Sys.Date()),
-      ccc_review_type = review_type,
+      ccc_review_type = as.character(review_type),
       ccc_session = as.character(period_code),
-      ccc_interim = if (!is.null(input$adhoc_ccc_interim)) as.character(input$adhoc_ccc_interim) else "",
-      ccc_ilp = if (!is.null(input$adhoc_ccc_ilp)) as.character(input$adhoc_ccc_ilp) else "",
+      ccc_interim = if (!is.null(input$adhoc_ccc_interim) && nchar(trimws(input$adhoc_ccc_interim)) > 0) as.character(input$adhoc_ccc_interim) else "",
+      ccc_ilp = if (!is.null(input$adhoc_ccc_ilp) && nchar(trimws(input$adhoc_ccc_ilp)) > 0) as.character(input$adhoc_ccc_ilp) else "",
       ccc_mile = "0",  # Not applicable for ad hoc
       ccc_mile_notes = "",
-      ccc_issues_follow_up = if (!is.null(input$adhoc_ccc_issues_follow_up)) as.character(input$adhoc_ccc_issues_follow_up) else "",
+      ccc_issues_follow_up = if (!is.null(input$adhoc_ccc_issues_follow_up) && nchar(trimws(input$adhoc_ccc_issues_follow_up)) > 0) as.character(input$adhoc_ccc_issues_follow_up) else "",
       ccc_concern = if (!is.null(input$adhoc_ccc_concern)) as.character(input$adhoc_ccc_concern) else "0",
-      ccc_comments = if (!is.null(input$adhoc_ccc_comments)) as.character(input$adhoc_ccc_comments) else "",
+      ccc_comments = if (!is.null(input$adhoc_ccc_comments) && nchar(trimws(input$adhoc_ccc_comments)) > 0) as.character(input$adhoc_ccc_comments) else "",
       ccc_review_complete = "2",  # Complete status
       stringsAsFactors = FALSE
     )
