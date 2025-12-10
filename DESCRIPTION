@@ -14,7 +14,6 @@ Imports:
     REDCapR,
     remotes,
     lubridate,
-    bslib,
-    gmed
+    bslib
 Remotes:
     fbuckhold3/gmed
