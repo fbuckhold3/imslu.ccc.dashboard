@@ -13,6 +13,8 @@ Imports:
     plotly,
     REDCapR,
     remotes,
+    lubridate,
+    bslib,
     gmed
 Remotes:
     fbuckhold3/gmed
