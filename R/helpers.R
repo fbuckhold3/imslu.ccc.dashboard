@@ -134,9 +134,6 @@ parse_data_dict_choices <- function(choices_string) {
     return(character(0))
   }
 
-  # Debug: Show raw choices string
-  message("parse_data_dict_choices - Raw string: ", substr(choices_string, 1, 200))
-
   # Split by pipe delimiter
   choice_pairs <- strsplit(choices_string, "\\|")[[1]]
 
@@ -148,7 +145,6 @@ parse_data_dict_choices <- function(choices_string) {
       code <- trimws(parts[1])
       label <- trimws(paste(parts[-1], collapse = ","))
       choices[code] <- label
-      message("  Parsed: code='", code, "' -> label='", label, "'")
     }
   }
 
@@ -200,35 +196,20 @@ translate_checkbox_values <- function(data_dict, field_name, checked_cols) {
   # Get choices from data dictionary
   choices <- get_field_choices(data_dict, field_name)
 
-  # Debug output
-  message("translate_checkbox_values called:")
-  message("  field_name: ", field_name)
-  message("  checked_cols: ", paste(checked_cols, collapse = ", "))
-  message("  choices available: ", length(choices))
-  if (length(choices) > 0) {
-    message("  choice codes: ", paste(names(choices), collapse = ", "))
-  }
-
   if (length(choices) == 0 || length(checked_cols) == 0) {
-    message("  returning empty (no choices or no checked)")
     return("")
   }
 
   # Extract codes from column names (e.g., "ccc_competency___1" -> "1")
   codes <- gsub(paste0(field_name, "___"), "", checked_cols)
-  message("  extracted codes: ", paste(codes, collapse = ", "))
 
   # Get labels for checked codes
   labels <- choices[codes]
-  message("  labels found: ", paste(labels[!is.na(labels)], collapse = ", "))
   labels <- labels[!is.na(labels)]
 
   if (length(labels) == 0) {
-    message("  returning empty (no labels matched)")
     return("")
   }
 
-  result <- paste(labels, collapse = ", ")
-  message("  returning: ", result)
-  return(result)
+  return(paste(labels, collapse = ", "))
 }

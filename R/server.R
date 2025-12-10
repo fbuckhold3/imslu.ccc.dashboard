@@ -183,34 +183,38 @@ create_server <- function(initial_data) {
       slice(1)
 
     tagList(
-      h3(paste("CCC Review:", resident_info$full_name)),
-      p(strong("Level: "), resident_info$current_period),
-      hr(),
+      # Resident info header
+      gmed::gmed_resident_panel(
+        resident_name = resident_info$full_name,
+        level = resident_info$current_period,
+        coach = if("coach_name" %in% names(resident_info)) resident_info$coach_name else NULL
+      ),
+      tags$hr(),
 
-      h4("Milestone Review and Data Entry"),
+      h4("Milestone Review and Data Entry", style = "margin-top: 20px;"),
       fluidRow(
         # Left column (1/3): Editable milestone table and descriptions
         column(
           width = 4,
-          wellPanel(
-            h5("Edit Program Milestones"),
+          gmed::gmed_card(
+            title = "Edit Program Milestones",
             p(
               class = "text-muted",
               style = "font-size: 0.9em;",
               "Edit milestone ratings (1-9 scale) for this period."
             ),
             DT::DTOutput("milestone_edit_table"),
-            br(),
+            tags$br(),
             actionButton(
               "save_milestone_edits",
               "Save Changes",
-              class = "btn-warning btn-block",
+              class = "btn-warning w-100",
               icon = icon("save")
             )
           ),
-          br(),
-          wellPanel(
-            h5("Milestone Descriptions"),
+          tags$br(),
+          gmed::gmed_card(
+            title = "Milestone Descriptions",
             p(
               class = "text-muted",
               style = "font-size: 0.9em;",
@@ -236,46 +240,48 @@ create_server <- function(initial_data) {
       ),
       hr(),
 
-      h4("Previous Reviews"),
+      h4("Previous Reviews", style = "margin-top: 30px;"),
       fluidRow(
         column(
           width = 6,
-          wellPanel(
-            h5("Coach Review"),
+          gmed::gmed_card(
+            title = "Coach Review",
             uiOutput("coach_review_summary")
           )
         ),
         column(
           width = 6,
-          wellPanel(
-            h5("Second Review"),
+          gmed::gmed_card(
+            title = "Second Review",
             uiOutput("second_review_summary")
           )
         )
       ),
-      hr(),
+      tags$hr(),
 
-      h4("CCC Review Form"),
+      h4("CCC Review Form", style = "margin-top: 30px;"),
       p(
         class = "text-muted",
         "Complete the following fields based on the committee's discussion and review of the resident's performance."
       ),
 
       # Action Data Table
-      h5("Previous Action Items"),
-      DT::DTOutput("action_data_table"),
-      br(),
+      gmed::gmed_card(
+        title = "Previous Action Items",
+        DT::DTOutput("action_data_table")
+      ),
+      tags$br(),
 
       # ILP Section
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Individual Learning Plan"),
+          gmed::gmed_card(
+            title = "Individual Learning Plan",
             uiOutput("coach_ilp_display"),
-            br(),
+            tags$br(),
             uiOutput("second_comments_display"),
-            br(),
+            tags$br(),
             textAreaInput(
               "ccc_ilp",
               "CCC ILP:",
@@ -292,8 +298,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Milestone Discussion"),
+          gmed::gmed_card(
+            title = "Milestone Discussion",
             radioButtons(
               "ccc_mile",
               "Discuss Milestones?",
@@ -310,8 +316,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Follow-up Issues"),
+          gmed::gmed_card(
+            title = "Follow-up Issues",
             radioButtons(
               "ccc_issues_yn",
               "Any Follow-up Issues?",
@@ -338,8 +344,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Concerns"),
+          gmed::gmed_card(
+            title = "Concerns",
             radioButtons(
               "ccc_concern",
               "Any Concerns?",
@@ -509,13 +515,6 @@ create_server <- function(initial_data) {
     competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency", for_ui = TRUE)
     action_choices <- get_field_choices(app_data()$data_dict, "ccc_action", for_ui = TRUE)
     status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
-
-    # Debug: Show what choices were retrieved
-    message("=== CHECKBOX CHOICES DEBUG (CCC Form) ===")
-    message("competency_choices: ", paste(names(competency_choices), "=", competency_choices, collapse = "; "))
-    message("action_choices: ", paste(names(action_choices), "=", action_choices, collapse = "; "))
-    message("status_choices: ", paste(names(status_choices), "=", status_choices, collapse = "; "))
-    message("==========================================")
 
     tagList(
       textAreaInput(
@@ -1249,65 +1248,67 @@ create_server <- function(initial_data) {
     )
 
     tagList(
-      h3(paste("Ad Hoc Discussion:", resident_info$full_name)),
-      p(
-        strong("Level: "), current_period, br(),
-        strong("Type: "), resident_info$type, br(),
-        strong("Graduation Year: "), resident_info$grad_yr
+      # Resident info header
+      gmed::gmed_resident_panel(
+        resident_name = resident_info$full_name,
+        level = current_period,
+        coach = if("type" %in% names(resident_info)) paste0("Type: ", resident_info$type) else NULL
       ),
-      hr(),
+      tags$hr(),
 
-      h4("Available Data"),
+      h4("Available Data", style = "margin-top: 20px;"),
       fluidRow(
         column(
           width = 4,
-          wellPanel(
-            h5("Program Milestones"),
+          gmed::gmed_card(
+            title = "Program Milestones",
             if (nrow(milestones$program) > 0) {
-              p("✓ Data available")
+              gmed::gmed_status_badge("Complete", "complete")
             } else {
-              p("✗ No data")
+              gmed::gmed_status_badge("No data", "incomplete")
             }
           )
         ),
         column(
           width = 4,
-          wellPanel(
-            h5("Self-Evaluation"),
+          gmed::gmed_card(
+            title = "Self-Evaluation",
             if (nrow(milestones$self) > 0) {
-              p("✓ Data available")
+              gmed::gmed_status_badge("Complete", "complete")
             } else {
-              p("✗ No data")
+              gmed::gmed_status_badge("No data", "incomplete")
             }
           )
         ),
         column(
           width = 4,
-          wellPanel(
-            h5("ACGME Milestones"),
+          gmed::gmed_card(
+            title = "ACGME Milestones",
             if (nrow(milestones$acgme) > 0) {
-              p("✓ Data available")
+              gmed::gmed_status_badge("Complete", "complete")
             } else {
-              p("✗ No data")
+              gmed::gmed_status_badge("No data", "incomplete")
             }
           )
         )
       ),
-      hr(),
+      tags$hr(),
 
-      h4("Ad Hoc Review Form"),
+      h4("Ad Hoc Review Form", style = "margin-top: 30px;"),
 
       # Action Data Table for Ad Hoc
-      h5("Previous Action Items"),
-      DT::DTOutput("adhoc_action_data_table"),
-      br(),
+      gmed::gmed_card(
+        title = "Previous Action Items",
+        DT::DTOutput("adhoc_action_data_table")
+      ),
+      tags$br(),
 
       # Interim Update
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Interim Update"),
+          gmed::gmed_card(
+            title = "Interim Update",
             textAreaInput(
               "adhoc_ccc_interim",
               "Interim Notes:",
@@ -1324,8 +1325,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Individual Learning Plan"),
+          gmed::gmed_card(
+            title = "Individual Learning Plan",
             textAreaInput(
               "adhoc_ccc_ilp",
               "CCC ILP:",
@@ -1342,8 +1343,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Follow-up Issues"),
+          gmed::gmed_card(
+            title = "Follow-up Issues",
             radioButtons(
               "adhoc_ccc_issues_yn",
               "Any Follow-up Issues?",
@@ -1370,8 +1371,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Concerns"),
+          gmed::gmed_card(
+            title = "Concerns",
             radioButtons(
               "adhoc_ccc_concern",
               "Any Concerns?",

@@ -1,7 +1,12 @@
 # ui.R - UI definition for CCC Dashboard
 
-ui <- fluidPage(
-  # Custom CSS
+ui <- gmed::gmed_page(
+  title = "CCC Dashboard",
+  theme_variant = "slucare",
+  base_font = "Inter",
+  heading_font = "Inter",
+
+  # Custom CSS and JavaScript
   tags$head(
     tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
     tags$script(HTML("
@@ -32,8 +37,11 @@ ui <- fluidPage(
     tags$img(id = "modalImage", class = "image-modal-content")
   ),
 
-  # Title
-  titlePanel("SLU Internal Medicine - Clinical Competency Committee Dashboard"),
+  # Application Header
+  gmed::gmed_app_header(
+    title = "Clinical Competency Committee Dashboard",
+    subtitle = "SLU Internal Medicine Residency Program"
+  ),
 
   # Main tab panel for three modes
   tabsetPanel(
@@ -55,28 +63,30 @@ ui <- fluidPage(
         fluidRow(
           column(
             width = 3,
-            wellPanel(
-              h4("Current Review Period"),
+            gmed::gmed_card(
+              title = "Current Review Period",
               textOutput("current_period_display"),
-              hr(),
+              tags$hr(style = "margin: 15px 0;"),
               actionButton(
                 inputId = "refresh_data",
                 label = "Refresh Data",
                 icon = icon("sync"),
-                class = "btn-primary"
+                class = "btn-primary w-100"
               )
             ),
-
-            wellPanel(
-              h4("Review Progress"),
+            tags$br(),
+            gmed::gmed_card(
+              title = "Review Progress",
               uiOutput("review_stats")
             )
           ),
 
           column(
             width = 9,
-            h3("Residents for Review"),
-            DT::DTOutput("resident_review_table")
+            gmed::gmed_card(
+              title = "Residents for Review",
+              DT::DTOutput("resident_review_table")
+            )
           )
         )
       ),
@@ -112,16 +122,18 @@ ui <- fluidPage(
       fluidRow(
         column(
           width = 3,
-          wellPanel(
-            h4("Select Resident"),
-            selectizeInput(
-              inputId = "adhoc_resident",
-              label = "Resident:",
-              choices = NULL,  # Populated in server
-              selected = NULL,
-              options = list(
-                placeholder = "Type to search...",
-                maxOptions = 100
+          gmed::gmed_card(
+            title = "Select Resident",
+            gmed::gmed_selector_container(
+              selectizeInput(
+                inputId = "adhoc_resident",
+                label = "Resident:",
+                choices = NULL,  # Populated in server
+                selected = NULL,
+                options = list(
+                  placeholder = "Type to search...",
+                  maxOptions = 100
+                )
               )
             )
           )
@@ -146,8 +158,8 @@ ui <- fluidPage(
       fluidRow(
         column(
           width = 3,
-          wellPanel(
-            h4("Admin Functions"),
+          gmed::gmed_card(
+            title = "Admin Functions",
             selectInput(
               inputId = "admin_view",
               label = "View:",
@@ -158,22 +170,23 @@ ui <- fluidPage(
               ),
               selected = "all"
             ),
-            hr(),
+            tags$hr(style = "margin: 15px 0;"),
             actionButton(
               inputId = "admin_add_data",
               label = "Enter Data",
               icon = icon("plus"),
-              class = "btn-success"
+              class = "btn-success w-100"
             )
           )
         ),
 
         column(
           width = 9,
-          h3("Resident Data"),
-          DT::DTOutput("admin_resident_table"),
-          br(),
-          hr(),
+          gmed::gmed_card(
+            title = "Resident Data",
+            DT::DTOutput("admin_resident_table")
+          ),
+          tags$br(),
 
           # Data entry panel (shown when entering data)
           uiOutput("admin_data_entry_panel")
