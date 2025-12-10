@@ -11,6 +11,14 @@
 #
 # ==============================================================================
 
+if (!require("gmed", quietly = TRUE)) {
+  if (!require("remotes", quietly = TRUE)) {
+    install.packages("remotes")
+  }
+  remotes::install_github("fbuckhold3/gmed", upgrade = "never")
+  library(gmed)
+}
+
 # ==============================================================================
 # API CONFIGURATION
 # ==============================================================================
