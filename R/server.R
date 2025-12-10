@@ -1062,15 +1062,6 @@ create_server <- function(initial_data) {
       return()
     }
 
-    # Debug: Print what we're about to submit
-    message("Submitting CCC review data:")
-    message("Record ID: ", rid)
-    message("Instance: ", next_instance)
-    message("Period code: ", period_code)
-    message("Review type: ", review_type)
-    message("Number of columns: ", ncol(ccc_data))
-    message("Column names: ", paste(names(ccc_data), collapse = ", "))
-
     # Try to save to REDCap
     tryCatch({
       # Use REDCapR to write data
