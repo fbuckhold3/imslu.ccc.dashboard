@@ -5,6 +5,8 @@ library(purrr)
 library(plotly)
 library(gmed)
 library(REDCapR)
+library(bslib)
+library(lubridate)
 
 # Ensure pipe operator is available
 if (!exists("%>%")) {
