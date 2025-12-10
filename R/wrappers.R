@@ -501,36 +501,46 @@ get_action_data_table <- function(rdm_data, record_id) {
   for (i in 1:nrow(action_data)) {
     row <- action_data[i, ]
 
-    # Get checkbox values and translate to labels
-    # Competency checkboxes
-    competency_cols <- grep("^ccc_competency___", names(row), value = TRUE)
-    competency_checked <- c()
-    for (col in competency_cols) {
-      if (!is.na(row[[col]]) && as.character(row[[col]]) == "1") {
-        competency_checked <- c(competency_checked, col)
-      }
-    }
-    competency_labels <- translate_checkbox_values(rdm_data$data_dict, "ccc_competency", competency_checked)
+    # Helper function to get checkbox labels for a field
+    get_checkbox_labels <- function(field_base_name) {
+      # First, check for individual checkbox columns (field___1, field___2, etc.)
+      checkbox_cols <- grep(paste0("^", field_base_name, "___"), names(row), value = TRUE)
 
-    # Action checkboxes
-    action_cols <- grep("^ccc_action___", names(row), value = TRUE)
-    action_checked <- c()
-    for (col in action_cols) {
-      if (!is.na(row[[col]]) && as.character(row[[col]]) == "1") {
-        action_checked <- c(action_checked, col)
+      if (length(checkbox_cols) > 0) {
+        # New format: individual checkbox columns
+        checked <- c()
+        for (col in checkbox_cols) {
+          if (!is.na(row[[col]]) && as.character(row[[col]]) == "1") {
+            checked <- c(checked, col)
+          }
+        }
+        return(translate_checkbox_values(rdm_data$data_dict, field_base_name, checked))
+      } else if (field_base_name %in% names(row)) {
+        # Old format: single field with comma-separated codes
+        codes_str <- as.character(row[[field_base_name]])
+        if (!is.na(codes_str) && nchar(trimws(codes_str)) > 0) {
+          # Split comma-separated codes
+          codes <- trimws(strsplit(codes_str, ",")[[1]])
+          if (length(codes) > 0) {
+            # Get choices from data dictionary
+            choices <- get_field_choices(rdm_data$data_dict, field_base_name)
+            if (length(choices) > 0) {
+              labels <- choices[codes]
+              labels <- labels[!is.na(labels)]
+              if (length(labels) > 0) {
+                return(paste(labels, collapse = ", "))
+              }
+            }
+          }
+        }
       }
+      return("")
     }
-    action_labels <- translate_checkbox_values(rdm_data$data_dict, "ccc_action", action_checked)
 
-    # Status checkboxes
-    status_cols <- grep("^ccc_action_status___", names(row), value = TRUE)
-    status_checked <- c()
-    for (col in status_cols) {
-      if (!is.na(row[[col]]) && as.character(row[[col]]) == "1") {
-        status_checked <- c(status_checked, col)
-      }
-    }
-    status_labels <- translate_checkbox_values(rdm_data$data_dict, "ccc_action_status", status_checked)
+    # Get labels for each checkbox field
+    competency_labels <- get_checkbox_labels("ccc_competency")
+    action_labels <- get_checkbox_labels("ccc_action")
+    status_labels <- get_checkbox_labels("ccc_action_status")
 
     result_list[[i]] <- data.frame(
       Date = if ("ccc_date" %in% names(row)) as.character(row$ccc_date) else "",
