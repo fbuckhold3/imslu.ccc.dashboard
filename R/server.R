@@ -505,10 +505,10 @@ create_server <- function(initial_data) {
       return(NULL)
     }
 
-    # Get checkbox choices from data dictionary
-    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency")
-    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
-    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
+    # Get checkbox choices from data dictionary (for_ui = TRUE to get labels as names)
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency", for_ui = TRUE)
+    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action", for_ui = TRUE)
+    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
 
     # Debug: Show what choices were retrieved
     message("=== CHECKBOX CHOICES DEBUG (CCC Form) ===")
@@ -1422,10 +1422,10 @@ create_server <- function(initial_data) {
       return(NULL)
     }
 
-    # Get checkbox choices from data dictionary
-    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency")
-    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
-    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
+    # Get checkbox choices from data dictionary (for_ui = TRUE to get labels as names)
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency", for_ui = TRUE)
+    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action", for_ui = TRUE)
+    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
 
     tagList(
       textAreaInput(

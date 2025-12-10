@@ -160,8 +160,9 @@ parse_data_dict_choices <- function(choices_string) {
 #' Gets choices for a specific field from the data dictionary
 #' @param data_dict Data dictionary data frame
 #' @param field_name Name of the field
-#' @return Named vector of choices (codes as names, labels as values)
-get_field_choices <- function(data_dict, field_name) {
+#' @param for_ui Logical, if TRUE returns labels as names (for Shiny UI), if FALSE returns codes as names (for lookup/translation)
+#' @return Named vector of choices
+get_field_choices <- function(data_dict, field_name, for_ui = FALSE) {
   if (is.null(data_dict) || !field_name %in% data_dict$field_name) {
     return(character(0))
   }
@@ -174,7 +175,18 @@ get_field_choices <- function(data_dict, field_name) {
     return(character(0))
   }
 
-  parse_data_dict_choices(field_info$select_choices_or_calculations)
+  choices <- parse_data_dict_choices(field_info$select_choices_or_calculations)
+
+  # For Shiny UI components, we need labels as names and codes as values
+  # For translation/lookup, we need codes as names and labels as values
+  if (for_ui && length(choices) > 0) {
+    # Reverse: make labels the names and codes the values
+    reversed <- names(choices)
+    names(reversed) <- unname(choices)
+    return(reversed)
+  }
+
+  return(choices)
 }
 
 #' Translate Checkbox Values to Labels
