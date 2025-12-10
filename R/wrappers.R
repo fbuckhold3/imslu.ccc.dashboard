@@ -495,17 +495,42 @@ get_action_data_table <- function(rdm_data, record_id) {
   }
 
   # Build output data frame with safe column access
-  result <- data.frame(
-    Date = if ("ccc_date" %in% names(action_data)) as.character(action_data$ccc_date) else "",
-    Session = if ("ccc_session" %in% names(action_data)) as.character(action_data$ccc_session) else "",
-    Type = if ("ccc_rev_type" %in% names(action_data)) as.character(action_data$ccc_rev_type) else "",
-    Issues = if ("ccc_issues_follow_up" %in% names(action_data)) as.character(action_data$ccc_issues_follow_up) else "",
-    Comments = if ("ccc_comments" %in% names(action_data)) as.character(action_data$ccc_comments) else "",
-    Competency = if ("ccc_competency" %in% names(action_data)) as.character(action_data$ccc_competency) else "",
-    Action = if ("ccc_action" %in% names(action_data)) as.character(action_data$ccc_action) else "",
-    Status = if ("ccc_action_status" %in% names(action_data)) as.character(action_data$ccc_action_status) else "",
-    stringsAsFactors = FALSE
-  )
+  # For checkbox fields, we need to translate the checked values to labels
+  result_list <- list()
+
+  for (i in 1:nrow(action_data)) {
+    row <- action_data[i, ]
+
+    # Get checkbox values and translate to labels
+    # Competency checkboxes
+    competency_cols <- grep("^ccc_competency___", names(row), value = TRUE)
+    competency_checked <- competency_cols[row[competency_cols] == "1"]
+    competency_labels <- translate_checkbox_values(rdm_data$data_dict, "ccc_competency", competency_checked)
+
+    # Action checkboxes
+    action_cols <- grep("^ccc_action___", names(row), value = TRUE)
+    action_checked <- action_cols[row[action_cols] == "1"]
+    action_labels <- translate_checkbox_values(rdm_data$data_dict, "ccc_action", action_checked)
+
+    # Status checkboxes
+    status_cols <- grep("^ccc_action_status___", names(row), value = TRUE)
+    status_checked <- status_cols[row[status_cols] == "1"]
+    status_labels <- translate_checkbox_values(rdm_data$data_dict, "ccc_action_status", status_checked)
+
+    result_list[[i]] <- data.frame(
+      Date = if ("ccc_date" %in% names(row)) as.character(row$ccc_date) else "",
+      Session = if ("ccc_session" %in% names(row)) as.character(row$ccc_session) else "",
+      Type = if ("ccc_rev_type" %in% names(row)) as.character(row$ccc_rev_type) else "",
+      Issues = if ("ccc_issues_follow_up" %in% names(row)) as.character(row$ccc_issues_follow_up) else "",
+      Comments = if ("ccc_comments" %in% names(row)) as.character(row$ccc_comments) else "",
+      Competency = competency_labels,
+      Action = action_labels,
+      Status = status_labels,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  result <- do.call(rbind, result_list)
 
   # Replace NA with empty strings
   result[is.na(result)] <- ""
