@@ -510,6 +510,13 @@ create_server <- function(initial_data) {
     action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
     status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
 
+    # Debug: Show what choices were retrieved
+    message("=== CHECKBOX CHOICES DEBUG (CCC Form) ===")
+    message("competency_choices: ", paste(names(competency_choices), "=", competency_choices, collapse = "; "))
+    message("action_choices: ", paste(names(action_choices), "=", action_choices, collapse = "; "))
+    message("status_choices: ", paste(names(status_choices), "=", status_choices, collapse = "; "))
+    message("==========================================")
+
     tagList(
       textAreaInput(
         "ccc_comments",

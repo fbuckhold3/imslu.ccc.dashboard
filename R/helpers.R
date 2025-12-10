@@ -134,6 +134,9 @@ parse_data_dict_choices <- function(choices_string) {
     return(character(0))
   }
 
+  # Debug: Show raw choices string
+  message("parse_data_dict_choices - Raw string: ", substr(choices_string, 1, 200))
+
   # Split by pipe delimiter
   choice_pairs <- strsplit(choices_string, "\\|")[[1]]
 
@@ -145,6 +148,7 @@ parse_data_dict_choices <- function(choices_string) {
       code <- trimws(parts[1])
       label <- trimws(paste(parts[-1], collapse = ","))
       choices[code] <- label
+      message("  Parsed: code='", code, "' -> label='", label, "'")
     }
   }
 
