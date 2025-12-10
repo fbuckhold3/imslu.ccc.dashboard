@@ -498,7 +498,7 @@ get_action_data_table <- function(rdm_data, record_id) {
   result <- data.frame(
     Date = if ("ccc_date" %in% names(action_data)) as.character(action_data$ccc_date) else "",
     Session = if ("ccc_session" %in% names(action_data)) as.character(action_data$ccc_session) else "",
-    Type = if ("ccc_review_type" %in% names(action_data)) as.character(action_data$ccc_review_type) else "",
+    Type = if ("ccc_rev_type" %in% names(action_data)) as.character(action_data$ccc_rev_type) else "",
     Issues = if ("ccc_issues_follow_up" %in% names(action_data)) as.character(action_data$ccc_issues_follow_up) else "",
     Comments = if ("ccc_comments" %in% names(action_data)) as.character(action_data$ccc_comments) else "",
     Competency = if ("ccc_competency" %in% names(action_data)) as.character(action_data$ccc_competency) else "",
