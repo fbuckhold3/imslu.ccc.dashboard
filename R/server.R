@@ -699,12 +699,12 @@ create_server <- function(initial_data) {
 
     # If no data exists, create empty template for administrative entry
     if (nrow(milestone_values) == 0) {
-      # Create template with all standard REP milestone competencies
+      # Create template with all standard REP milestone competencies (21 total)
       template_competencies <- c(
         "PC1", "PC2", "PC3", "PC4", "PC5", "PC6",
         "MK1", "MK2", "MK3",
-        "SBP1", "SBP2", "SBP3", "SBP4",
-        "PBLI1", "PBLI2", "PBLI3",
+        "SBP1", "SBP2", "SBP3",
+        "PBLI1", "PBLI2",
         "PROF1", "PROF2", "PROF3", "PROF4",
         "ICS1", "ICS2", "ICS3"
       )
@@ -1116,12 +1116,12 @@ create_server <- function(initial_data) {
         next_instance <- 1
       }
 
-      # Create template with all milestone fields
+      # Create template with all milestone fields (21 total)
       milestone_cols <- c(
         paste0("rep_pc", 1:6),
         paste0("rep_mk", 1:3),
-        paste0("rep_sbp", 1:4),
-        paste0("rep_pbli", 1:3),
+        paste0("rep_sbp", 1:3),
+        paste0("rep_pbli", 1:2),
         paste0("rep_prof", 1:4),
         paste0("rep_ics", 1:3)
       )
@@ -1154,8 +1154,8 @@ create_server <- function(initial_data) {
       template_competencies <- c(
         paste0("PC", 1:6),
         paste0("MK", 1:3),
-        paste0("SBP", 1:4),
-        paste0("PBLI", 1:3),
+        paste0("SBP", 1:3),
+        paste0("PBLI", 1:2),
         paste0("PROF", 1:4),
         paste0("ICS", 1:3)
       )
@@ -1163,8 +1163,8 @@ create_server <- function(initial_data) {
       template_fields <- c(
         paste0("rep_pc", 1:6),
         paste0("rep_mk", 1:3),
-        paste0("rep_sbp", 1:4),
-        paste0("rep_pbli", 1:3),
+        paste0("rep_sbp", 1:3),
+        paste0("rep_pbli", 1:2),
         paste0("rep_prof", 1:4),
         paste0("rep_ics", 1:3)
       )
