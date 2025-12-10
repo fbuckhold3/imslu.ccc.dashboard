@@ -124,16 +124,14 @@ ui <- gmed::gmed_page(
           width = 3,
           gmed::gmed_card(
             title = "Select Resident",
-            gmed::gmed_selector_container(
-              selectizeInput(
-                inputId = "adhoc_resident",
-                label = "Resident:",
-                choices = NULL,  # Populated in server
-                selected = NULL,
-                options = list(
-                  placeholder = "Type to search...",
-                  maxOptions = 100
-                )
+            selectizeInput(
+              inputId = "adhoc_resident",
+              label = "Resident:",
+              choices = NULL,  # Populated in server
+              selected = NULL,
+              options = list(
+                placeholder = "Type to search...",
+                maxOptions = 100
               )
             )
           )
@@ -147,49 +145,35 @@ ui <- gmed::gmed_page(
     ),
 
     # ===========================================================================
-    # MODE 3: ADMIN PAGE
+    # MODE 3: MILESTONE ANALYSIS
     # ===========================================================================
     tabPanel(
-      title = "Admin",
-      value = "admin",
+      title = "Milestone Analysis",
+      value = "milestone_analysis",
 
       br(),
 
       fluidRow(
         column(
-          width = 3,
+          width = 12,
           gmed::gmed_card(
-            title = "Admin Functions",
-            selectInput(
-              inputId = "admin_view",
-              label = "View:",
-              choices = c(
-                "All Residents" = "all",
-                "Mid Year Reviews" = "mid",
-                "End Year Reviews" = "end"
+            title = "Milestone Analysis Dashboard",
+            tags$div(
+              style = "padding: 40px; text-align: center;",
+              tags$h4("Milestone Analysis Coming Soon", style = "color: #6c757d; margin-bottom: 20px;"),
+              tags$p(
+                "This section will provide comprehensive milestone analysis tools including:",
+                style = "color: #6c757d; font-size: 16px; margin-bottom: 10px;"
               ),
-              selected = "all"
-            ),
-            tags$hr(style = "margin: 15px 0;"),
-            actionButton(
-              inputId = "admin_add_data",
-              label = "Enter Data",
-              icon = icon("plus"),
-              class = "btn-success w-100"
+              tags$ul(
+                style = "list-style: none; padding: 0; color: #6c757d; font-size: 14px;",
+                tags$li(icon("chart-line"), " Cohort performance trends"),
+                tags$li(icon("users"), " Comparative resident analysis"),
+                tags$li(icon("graduation-cap"), " Competency progression tracking"),
+                tags$li(icon("file-export"), " Custom report generation")
+              )
             )
           )
-        ),
-
-        column(
-          width = 9,
-          gmed::gmed_card(
-            title = "Resident Data",
-            DT::DTOutput("admin_resident_table")
-          ),
-          tags$br(),
-
-          # Data entry panel (shown when entering data)
-          uiOutput("admin_data_entry_panel")
         )
       )
     )

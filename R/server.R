@@ -697,14 +697,25 @@ create_server <- function(initial_data) {
       resident_info$current_period
     )
 
+    # If no data exists, create empty template for administrative entry
     if (nrow(milestone_values) == 0) {
+      # Create template with all standard REP milestone competencies
+      template_competencies <- c(
+        "PC1", "PC2", "PC3", "PC4", "PC5", "PC6",
+        "MK1", "MK2", "MK3",
+        "SBP1", "SBP2", "SBP3", "SBP4",
+        "PBLI1", "PBLI2", "PBLI3",
+        "PROF1", "PROF2", "PROF3", "PROF4",
+        "ICS1", "ICS2", "ICS3"
+      )
+
       display_data <- data.frame(
-        Subcompetency = "No milestone data available",
-        Value = NA,
-        Image = "",
+        Subcompetency = sapply(template_competencies, get_competency_full_name),
+        Value = rep(NA, length(template_competencies)),
+        Image = paste0('<a href="#" onclick="showImage(\'milestones/', tolower(template_competencies), '.png\'); return false;">View</a>'),
         stringsAsFactors = FALSE
       )
-      editable <- FALSE
+      editable <- TRUE  # Enable editing for administrative entry
     } else {
       # Add full names and image links
       display_data <- data.frame(
@@ -1091,21 +1102,80 @@ create_server <- function(initial_data) {
       resident_info$current_period
     )
 
-    if (nrow(milestone_entry_data) == 0) {
-      showNotification(
-        "No milestone entry found for this period.",
-        type = "warning",
-        duration = 5
+    # Determine if we're creating a new entry or updating existing
+    creating_new_entry <- (nrow(milestone_entry_data) == 0)
+
+    if (creating_new_entry) {
+      # Calculate next instance number for new entry
+      all_milestone_entries <- app_data()$all_forms$milestone_entry %>%
+        filter(record_id == rid, redcap_repeat_instrument == "milestone_entry")
+
+      if (nrow(all_milestone_entries) > 0) {
+        next_instance <- max(as.numeric(all_milestone_entries$redcap_repeat_instance), na.rm = TRUE) + 1
+      } else {
+        next_instance <- 1
+      }
+
+      # Create template with all milestone fields
+      milestone_cols <- c(
+        paste0("rep_pc", 1:6),
+        paste0("rep_mk", 1:3),
+        paste0("rep_sbp", 1:4),
+        paste0("rep_pbli", 1:3),
+        paste0("rep_prof", 1:4),
+        paste0("rep_ics", 1:3)
       )
-      return()
+
+      # Initialize milestone_entry_data as a template for new entry
+      milestone_entry_data <- data.frame(
+        record_id = as.character(rid),
+        redcap_repeat_instrument = "milestone_entry",
+        redcap_repeat_instance = next_instance,
+        prog_mile_date = as.character(Sys.Date()),  # Set current date
+        stringsAsFactors = FALSE
+      )
+
+      # Add empty milestone fields
+      for (col in milestone_cols) {
+        milestone_entry_data[[col]] <- NA
+      }
     }
 
-    # Get the milestone values with field names
+    # Get the milestone values with field names (for existing data)
+    # For new entries, this will be empty but we'll map from the template
     milestone_values <- get_milestone_values_for_edit(
       app_data(),
       rid,
       resident_info$current_period
     )
+
+    # If creating new entry, build milestone_values from template
+    if (creating_new_entry) {
+      template_competencies <- c(
+        paste0("PC", 1:6),
+        paste0("MK", 1:3),
+        paste0("SBP", 1:4),
+        paste0("PBLI", 1:3),
+        paste0("PROF", 1:4),
+        paste0("ICS", 1:3)
+      )
+
+      template_fields <- c(
+        paste0("rep_pc", 1:6),
+        paste0("rep_mk", 1:3),
+        paste0("rep_sbp", 1:4),
+        paste0("rep_pbli", 1:3),
+        paste0("rep_prof", 1:4),
+        paste0("rep_ics", 1:3)
+      )
+
+      milestone_values <- data.frame(
+        competency = template_competencies,
+        field_name = template_fields,
+        value = rep(NA, length(template_competencies)),
+        stringsAsFactors = FALSE
+      )
+    }
 
     # Check if there were any cell edits
     if (!is.null(input$milestone_edit_table_cell_edit)) {
@@ -1180,8 +1250,14 @@ create_server <- function(initial_data) {
           )
 
           if (result$success) {
+            message_text <- if (creating_new_entry) {
+              paste("New milestone entry created successfully for", resident_info$full_name)
+            } else {
+              paste("Milestone values updated successfully for", resident_info$full_name)
+            }
+
             showNotification(
-              paste("Milestone values updated successfully for", resident_info$full_name),
+              message_text,
               type = "message",
               duration = 5
             )
