@@ -37,11 +37,49 @@ ui <- gmed::gmed_page(
     tags$img(id = "modalImage", class = "image-modal-content")
   ),
 
-  # Application Header
-  gmed::gmed_app_header(
-    title = "Clinical Competency Committee Dashboard",
-    subtitle = "SLU Internal Medicine Residency Program"
+  # Access Code Page
+  conditionalPanel(
+    condition = "output.authenticated == false",
+    tags$div(
+      style = "max-width: 500px; margin: 100px auto; padding: 40px;",
+      gmed::gmed_card(
+        title = "Access Required",
+        tags$div(
+          style = "text-align: center; padding: 20px;",
+          tags$p(
+            "Please enter your access code to view the CCC Dashboard",
+            style = "margin-bottom: 30px; color: #6c757d;"
+          ),
+          passwordInput(
+            inputId = "access_code",
+            label = "Access Code:",
+            placeholder = "Enter your access code",
+            width = "100%"
+          ),
+          tags$br(),
+          actionButton(
+            inputId = "submit_access_code",
+            label = "Submit",
+            icon = icon("sign-in-alt"),
+            class = "btn-primary w-100",
+            style = "margin-top: 10px;"
+          ),
+          tags$br(),
+          uiOutput("access_error_message")
+        )
+      )
+    )
   ),
+
+  # Main Dashboard (shown after authentication)
+  conditionalPanel(
+    condition = "output.authenticated == true",
+
+    # Application Header
+    gmed::gmed_app_header(
+      title = "Clinical Competency Committee Dashboard",
+      subtitle = "SLU Internal Medicine Residency Program"
+    ),
 
   # Main tab panel for three modes
   tabsetPanel(
@@ -178,4 +216,5 @@ ui <- gmed::gmed_page(
       )
     )
   )
+  )  # Close conditionalPanel for authenticated content
 )

@@ -10,6 +10,50 @@ create_server <- function(initial_data) {
     app_data <- reactiveVal(initial_data)
     selected_resident_id <- reactiveVal(NULL)
     show_list_view <- reactiveVal(TRUE)
+    authenticated <- reactiveVal(FALSE)
+
+  # ===========================================================================
+  # AUTHENTICATION
+  # ===========================================================================
+
+  # Output authenticated status for conditional panels
+  output$authenticated <- reactive({
+    authenticated()
+  })
+  outputOptions(output, "authenticated", suspendWhenHidden = FALSE)
+
+  # Handle access code submission
+  observeEvent(input$submit_access_code, {
+    # Get the expected access code from environment variable
+    expected_code <- Sys.getenv("CCC_ACCESS_CODE")
+
+    if (expected_code == "") {
+      showNotification(
+        "Access code not configured. Please set CCC_ACCESS_CODE environment variable.",
+        type = "error",
+        duration = 10
+      )
+      return()
+    }
+
+    # Check if entered code matches
+    if (!is.null(input$access_code) && input$access_code == expected_code) {
+      authenticated(TRUE)
+      showNotification(
+        "Access granted. Welcome to the CCC Dashboard!",
+        type = "message",
+        duration = 3
+      )
+    } else {
+      output$access_error_message <- renderUI({
+        tags$div(
+          style = "color: #dc3545; margin-top: 15px; font-size: 14px;",
+          icon("exclamation-circle"),
+          " Invalid access code. Please try again."
+        )
+      })
+    }
+  })
 
   # ===========================================================================
   # INITIALIZATION
