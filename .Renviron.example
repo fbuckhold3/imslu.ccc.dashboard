@@ -1,0 +1,9 @@
+# Example .Renviron file for CCC Dashboard
+# Copy this file to .Renviron and set your actual values
+
+# Access code for dashboard authentication
+CCC_ACCESS_CODE=your_secure_access_code_here
+
+# REDCap API configuration (already configured in your app)
+# REDCAP_URL=https://redcapsurvey.slu.edu/api/
+# REDCAP_RDM_TOKEN=your_token_here

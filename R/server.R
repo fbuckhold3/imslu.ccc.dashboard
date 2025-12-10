@@ -10,6 +10,50 @@ create_server <- function(initial_data) {
     app_data <- reactiveVal(initial_data)
     selected_resident_id <- reactiveVal(NULL)
     show_list_view <- reactiveVal(TRUE)
+    authenticated <- reactiveVal(FALSE)
+
+  # ===========================================================================
+  # AUTHENTICATION
+  # ===========================================================================
+
+  # Output authenticated status for conditional panels
+  output$authenticated <- reactive({
+    authenticated()
+  })
+  outputOptions(output, "authenticated", suspendWhenHidden = FALSE)
+
+  # Handle access code submission
+  observeEvent(input$submit_access_code, {
+    # Get the expected access code from environment variable
+    expected_code <- Sys.getenv("CCC_ACCESS_CODE")
+
+    if (expected_code == "") {
+      showNotification(
+        "Access code not configured. Please set CCC_ACCESS_CODE environment variable.",
+        type = "error",
+        duration = 10
+      )
+      return()
+    }
+
+    # Check if entered code matches
+    if (!is.null(input$access_code) && input$access_code == expected_code) {
+      authenticated(TRUE)
+      showNotification(
+        "Access granted. Welcome to the CCC Dashboard!",
+        type = "message",
+        duration = 3
+      )
+    } else {
+      output$access_error_message <- renderUI({
+        tags$div(
+          style = "color: #dc3545; margin-top: 15px; font-size: 14px;",
+          icon("exclamation-circle"),
+          " Invalid access code. Please try again."
+        )
+      })
+    }
+  })
 
   # ===========================================================================
   # INITIALIZATION
@@ -183,34 +227,38 @@ create_server <- function(initial_data) {
       slice(1)
 
     tagList(
-      h3(paste("CCC Review:", resident_info$full_name)),
-      p(strong("Level: "), resident_info$current_period),
-      hr(),
+      # Resident info header
+      gmed::gmed_resident_panel(
+        resident_name = resident_info$full_name,
+        level = resident_info$current_period,
+        coach = if("coach_name" %in% names(resident_info)) resident_info$coach_name else NULL
+      ),
+      tags$hr(),
 
-      h4("Milestone Review and Data Entry"),
+      h4("Milestone Review and Data Entry", style = "margin-top: 20px;"),
       fluidRow(
         # Left column (1/3): Editable milestone table and descriptions
         column(
           width = 4,
-          wellPanel(
-            h5("Edit Program Milestones"),
+          gmed::gmed_card(
+            title = "Edit Program Milestones",
             p(
               class = "text-muted",
               style = "font-size: 0.9em;",
               "Edit milestone ratings (1-9 scale) for this period."
             ),
             DT::DTOutput("milestone_edit_table"),
-            br(),
+            tags$br(),
             actionButton(
               "save_milestone_edits",
               "Save Changes",
-              class = "btn-warning btn-block",
+              class = "btn-warning w-100",
               icon = icon("save")
             )
           ),
-          br(),
-          wellPanel(
-            h5("Milestone Descriptions"),
+          tags$br(),
+          gmed::gmed_card(
+            title = "Milestone Descriptions",
             p(
               class = "text-muted",
               style = "font-size: 0.9em;",
@@ -236,46 +284,48 @@ create_server <- function(initial_data) {
       ),
       hr(),
 
-      h4("Previous Reviews"),
+      h4("Previous Reviews", style = "margin-top: 30px;"),
       fluidRow(
         column(
           width = 6,
-          wellPanel(
-            h5("Coach Review"),
+          gmed::gmed_card(
+            title = "Coach Review",
             uiOutput("coach_review_summary")
           )
         ),
         column(
           width = 6,
-          wellPanel(
-            h5("Second Review"),
+          gmed::gmed_card(
+            title = "Second Review",
             uiOutput("second_review_summary")
           )
         )
       ),
-      hr(),
+      tags$hr(),
 
-      h4("CCC Review Form"),
+      h4("CCC Review Form", style = "margin-top: 30px;"),
       p(
         class = "text-muted",
         "Complete the following fields based on the committee's discussion and review of the resident's performance."
       ),
 
       # Action Data Table
-      h5("Previous Action Items"),
-      DT::DTOutput("action_data_table"),
-      br(),
+      gmed::gmed_card(
+        title = "Previous Action Items",
+        DT::DTOutput("action_data_table")
+      ),
+      tags$br(),
 
       # ILP Section
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Individual Learning Plan"),
+          gmed::gmed_card(
+            title = "Individual Learning Plan",
             uiOutput("coach_ilp_display"),
-            br(),
+            tags$br(),
             uiOutput("second_comments_display"),
-            br(),
+            tags$br(),
             textAreaInput(
               "ccc_ilp",
               "CCC ILP:",
@@ -292,8 +342,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Milestone Discussion"),
+          gmed::gmed_card(
+            title = "Milestone Discussion",
             radioButtons(
               "ccc_mile",
               "Discuss Milestones?",
@@ -310,8 +360,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Follow-up Issues"),
+          gmed::gmed_card(
+            title = "Follow-up Issues",
             radioButtons(
               "ccc_issues_yn",
               "Any Follow-up Issues?",
@@ -338,8 +388,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Concerns"),
+          gmed::gmed_card(
+            title = "Concerns",
             radioButtons(
               "ccc_concern",
               "Any Concerns?",
@@ -505,10 +555,10 @@ create_server <- function(initial_data) {
       return(NULL)
     }
 
-    # Get checkbox choices from data dictionary
-    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency")
-    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
-    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
+    # Get checkbox choices from data dictionary (for_ui = TRUE to get labels as names)
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency", for_ui = TRUE)
+    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action", for_ui = TRUE)
+    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
 
     tagList(
       textAreaInput(
@@ -691,14 +741,25 @@ create_server <- function(initial_data) {
       resident_info$current_period
     )
 
+    # If no data exists, create empty template for administrative entry
     if (nrow(milestone_values) == 0) {
+      # Create template with all standard REP milestone competencies (21 total)
+      template_competencies <- c(
+        "PC1", "PC2", "PC3", "PC4", "PC5", "PC6",
+        "MK1", "MK2", "MK3",
+        "SBP1", "SBP2", "SBP3",
+        "PBLI1", "PBLI2",
+        "PROF1", "PROF2", "PROF3", "PROF4",
+        "ICS1", "ICS2", "ICS3"
+      )
+
       display_data <- data.frame(
-        Subcompetency = "No milestone data available",
-        Value = NA,
-        Image = "",
+        Subcompetency = sapply(template_competencies, get_competency_full_name),
+        Value = rep(NA, length(template_competencies)),
+        Image = paste0('<a href="#" onclick="showImage(\'milestones/', tolower(template_competencies), '.png\'); return false;">View</a>'),
         stringsAsFactors = FALSE
       )
-      editable <- FALSE
+      editable <- TRUE  # Enable editing for administrative entry
     } else {
       # Add full names and image links
       display_data <- data.frame(
@@ -1001,15 +1062,6 @@ create_server <- function(initial_data) {
       return()
     }
 
-    # Debug: Print what we're about to submit
-    message("Submitting CCC review data:")
-    message("Record ID: ", rid)
-    message("Instance: ", next_instance)
-    message("Period code: ", period_code)
-    message("Review type: ", review_type)
-    message("Number of columns: ", ncol(ccc_data))
-    message("Column names: ", paste(names(ccc_data), collapse = ", "))
-
     # Try to save to REDCap
     tryCatch({
       # Use REDCapR to write data
@@ -1085,21 +1137,80 @@ create_server <- function(initial_data) {
       resident_info$current_period
     )
 
-    if (nrow(milestone_entry_data) == 0) {
-      showNotification(
-        "No milestone entry found for this period.",
-        type = "warning",
-        duration = 5
+    # Determine if we're creating a new entry or updating existing
+    creating_new_entry <- (nrow(milestone_entry_data) == 0)
+
+    if (creating_new_entry) {
+      # Calculate next instance number for new entry
+      all_milestone_entries <- app_data()$all_forms$milestone_entry %>%
+        filter(record_id == rid, redcap_repeat_instrument == "milestone_entry")
+
+      if (nrow(all_milestone_entries) > 0) {
+        next_instance <- max(as.numeric(all_milestone_entries$redcap_repeat_instance), na.rm = TRUE) + 1
+      } else {
+        next_instance <- 1
+      }
+
+      # Create template with all milestone fields (21 total)
+      milestone_cols <- c(
+        paste0("rep_pc", 1:6),
+        paste0("rep_mk", 1:3),
+        paste0("rep_sbp", 1:3),
+        paste0("rep_pbli", 1:2),
+        paste0("rep_prof", 1:4),
+        paste0("rep_ics", 1:3)
       )
-      return()
+
+      # Initialize milestone_entry_data as a template for new entry
+      milestone_entry_data <- data.frame(
+        record_id = as.character(rid),
+        redcap_repeat_instrument = "milestone_entry",
+        redcap_repeat_instance = next_instance,
+        prog_mile_date = as.character(Sys.Date()),  # Set current date
+        stringsAsFactors = FALSE
+      )
+
+      # Add empty milestone fields
+      for (col in milestone_cols) {
+        milestone_entry_data[[col]] <- NA
+      }
     }
 
-    # Get the milestone values with field names
+    # Get the milestone values with field names (for existing data)
+    # For new entries, this will be empty but we'll map from the template
     milestone_values <- get_milestone_values_for_edit(
       app_data(),
       rid,
       resident_info$current_period
     )
+
+    # If creating new entry, build milestone_values from template
+    if (creating_new_entry) {
+      template_competencies <- c(
+        paste0("PC", 1:6),
+        paste0("MK", 1:3),
+        paste0("SBP", 1:3),
+        paste0("PBLI", 1:2),
+        paste0("PROF", 1:4),
+        paste0("ICS", 1:3)
+      )
+
+      template_fields <- c(
+        paste0("rep_pc", 1:6),
+        paste0("rep_mk", 1:3),
+        paste0("rep_sbp", 1:3),
+        paste0("rep_pbli", 1:2),
+        paste0("rep_prof", 1:4),
+        paste0("rep_ics", 1:3)
+      )
+
+      milestone_values <- data.frame(
+        competency = template_competencies,
+        field_name = template_fields,
+        value = rep(NA, length(template_competencies)),
+        stringsAsFactors = FALSE
+      )
+    }
 
     # Check if there were any cell edits
     if (!is.null(input$milestone_edit_table_cell_edit)) {
@@ -1174,8 +1285,14 @@ create_server <- function(initial_data) {
           )
 
           if (result$success) {
+            message_text <- if (creating_new_entry) {
+              paste("New milestone entry created successfully for", resident_info$full_name)
+            } else {
+              paste("Milestone values updated successfully for", resident_info$full_name)
+            }
+
             showNotification(
-              paste("Milestone values updated successfully for", resident_info$full_name),
+              message_text,
               type = "message",
               duration = 5
             )
@@ -1242,65 +1359,67 @@ create_server <- function(initial_data) {
     )
 
     tagList(
-      h3(paste("Ad Hoc Discussion:", resident_info$full_name)),
-      p(
-        strong("Level: "), current_period, br(),
-        strong("Type: "), resident_info$type, br(),
-        strong("Graduation Year: "), resident_info$grad_yr
+      # Resident info header
+      gmed::gmed_resident_panel(
+        resident_name = resident_info$full_name,
+        level = current_period,
+        coach = if("type" %in% names(resident_info)) paste0("Type: ", resident_info$type) else NULL
       ),
-      hr(),
+      tags$hr(),
 
-      h4("Available Data"),
+      h4("Available Data", style = "margin-top: 20px;"),
       fluidRow(
         column(
           width = 4,
-          wellPanel(
-            h5("Program Milestones"),
+          gmed::gmed_card(
+            title = "Program Milestones",
             if (nrow(milestones$program) > 0) {
-              p("✓ Data available")
+              gmed::gmed_status_badge("Complete", "complete")
             } else {
-              p("✗ No data")
+              gmed::gmed_status_badge("No data", "incomplete")
             }
           )
         ),
         column(
           width = 4,
-          wellPanel(
-            h5("Self-Evaluation"),
+          gmed::gmed_card(
+            title = "Self-Evaluation",
             if (nrow(milestones$self) > 0) {
-              p("✓ Data available")
+              gmed::gmed_status_badge("Complete", "complete")
             } else {
-              p("✗ No data")
+              gmed::gmed_status_badge("No data", "incomplete")
             }
           )
         ),
         column(
           width = 4,
-          wellPanel(
-            h5("ACGME Milestones"),
+          gmed::gmed_card(
+            title = "ACGME Milestones",
             if (nrow(milestones$acgme) > 0) {
-              p("✓ Data available")
+              gmed::gmed_status_badge("Complete", "complete")
             } else {
-              p("✗ No data")
+              gmed::gmed_status_badge("No data", "incomplete")
             }
           )
         )
       ),
-      hr(),
+      tags$hr(),
 
-      h4("Ad Hoc Review Form"),
+      h4("Ad Hoc Review Form", style = "margin-top: 30px;"),
 
       # Action Data Table for Ad Hoc
-      h5("Previous Action Items"),
-      DT::DTOutput("adhoc_action_data_table"),
-      br(),
+      gmed::gmed_card(
+        title = "Previous Action Items",
+        DT::DTOutput("adhoc_action_data_table")
+      ),
+      tags$br(),
 
       # Interim Update
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Interim Update"),
+          gmed::gmed_card(
+            title = "Interim Update",
             textAreaInput(
               "adhoc_ccc_interim",
               "Interim Notes:",
@@ -1317,8 +1436,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Individual Learning Plan"),
+          gmed::gmed_card(
+            title = "Individual Learning Plan",
             textAreaInput(
               "adhoc_ccc_ilp",
               "CCC ILP:",
@@ -1335,8 +1454,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Follow-up Issues"),
+          gmed::gmed_card(
+            title = "Follow-up Issues",
             radioButtons(
               "adhoc_ccc_issues_yn",
               "Any Follow-up Issues?",
@@ -1363,8 +1482,8 @@ create_server <- function(initial_data) {
       fluidRow(
         column(
           width = 12,
-          wellPanel(
-            h5("Concerns"),
+          gmed::gmed_card(
+            title = "Concerns",
             radioButtons(
               "adhoc_ccc_concern",
               "Any Concerns?",
@@ -1415,10 +1534,10 @@ create_server <- function(initial_data) {
       return(NULL)
     }
 
-    # Get checkbox choices from data dictionary
-    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency")
-    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
-    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
+    # Get checkbox choices from data dictionary (for_ui = TRUE to get labels as names)
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency", for_ui = TRUE)
+    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action", for_ui = TRUE)
+    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
 
     tagList(
       textAreaInput(

@@ -115,19 +115,12 @@ load_ccc_data <- function(
   include_archived = FALSE
 ) {
 
-  message(sprintf(
-    "[%s] Loading RDM data for CCC dashboard...",
-    format(Sys.time(), "%H:%M:%S")
-  ))
-
   # Use gmed's data loading function with raw format
   rdm_data <- gmed::load_rdm_complete(
     redcap_url = redcap_url,
     rdm_token = rdm_token,
     raw_or_label = "raw"  # Required for numeric fields and checkboxes
   )
-
-  message("  -> Processing resident data...")
 
   # Filter archived residents if requested
   if (!include_archived && "residents" %in% names(rdm_data)) {
@@ -137,8 +130,6 @@ load_ccc_data <- function(
         pull(record_id)
 
       if (length(archived_records) > 0) {
-        message("  Filtering out ", length(archived_records), " archived residents")
-
         # Filter from residents
         rdm_data$residents <- rdm_data$residents %>%
           filter(!(record_id %in% archived_records))
@@ -156,8 +147,6 @@ load_ccc_data <- function(
 
   # Translate type and grad_yr from codes to labels
   if (!is.null(rdm_data$data_dict) && "residents" %in% names(rdm_data)) {
-    message("  -> Translating type and grad_yr codes...")
-
     # Translate type field
     type_choices <- rdm_data$data_dict %>%
       filter(field_name == "type") %>%
@@ -212,8 +201,6 @@ load_ccc_data <- function(
 
   # Translate period fields from codes to labels
   if (!is.null(rdm_data$data_dict)) {
-    message("  -> Translating period field codes to labels...")
-
     # Period field candidates (all forms that have period fields)
     period_field_candidates <- c(
       "s_e_period",           # S Eval
@@ -256,17 +243,13 @@ load_ccc_data <- function(
                   .data[[field]]
                 )
               )
-            message(sprintf("    Translated %s in form %s", field, form_name))
           }
         }
       }
     }
-    message("  Period field translation complete")
   }
 
   # Calculate current period for each resident using gmed logic
-  message("  -> Calculating expected periods for all residents...")
-
   current_date <- Sys.Date()
 
   if ("residents" %in% names(rdm_data) &&
@@ -314,14 +297,7 @@ load_ccc_data <- function(
       ungroup()
   }
 
-  message(sprintf(
-    "[%s] Data loading complete! %d residents found.",
-    format(Sys.time(), "%H:%M:%S"),
-    if ("residents" %in% names(rdm_data)) nrow(rdm_data$residents) else 0
-  ))
-
   # Create milestone workflow using data dictionary approach
-  message("  -> Creating milestone workflow from data dictionary...")
   rdm_data$milestone_workflow <- tryCatch({
     gmed::create_milestone_workflow_from_dict(
       all_forms = rdm_data$all_forms,
@@ -329,7 +305,6 @@ load_ccc_data <- function(
       resident_data = rdm_data$residents
     )
   }, error = function(e) {
-    message("  Warning: Could not create milestone workflow: ", e$message)
     NULL
   })
 
@@ -463,12 +438,5 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
 }
 
 # ==============================================================================
-# STARTUP MESSAGE
+# APPLICATION INITIALIZED
 # ==============================================================================
-message("=====================================================")
-message("IMSLU CCC Dashboard")
-message("=====================================================")
-message("REDCap URL: ", REDCAP_CONFIG$url)
-message("Token configured: ", nzchar(REDCAP_CONFIG$rdm_token))
-message("Current CCC Period: ", get_current_ccc_period())
-message("=====================================================")
