@@ -12,6 +12,7 @@ Imports:
     purrr,
     plotly,
     REDCapR,
+    remotes,
     gmed
 Remotes:
     fbuckhold3/gmed
