@@ -12,6 +12,7 @@ Imports:
     purrr,
     plotly,
     REDCapR,
+    remotes,
     lubridate,
     bslib,
     gmed

@@ -4,6 +4,7 @@
 # ==============================================================================
 #
 # This file sets up:
+# - Package installation (gmed from GitHub)
 # - REDCap configuration
 # - Period definitions
 # - Data loading function with period calculation
@@ -11,6 +12,19 @@
 #
 # ==============================================================================
 
+if (!require("gmed", quietly = TRUE)) {
+  if (!require("remotes", quietly = TRUE)) {
+    install.packages("remotes")
+  }
+  remotes::install_github("fbuckhold3/gmed", upgrade = "never")
+  library(gmed)
+}
+
+# ==============================================================================
+# PACKAGE INSTALLATION
+# ==============================================================================
+
+# Install gmed package from GitHub if not already installed
 if (!require("gmed", quietly = TRUE)) {
   if (!require("remotes", quietly = TRUE)) {
     install.packages("remotes")
