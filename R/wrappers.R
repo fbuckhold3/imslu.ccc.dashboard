@@ -504,17 +504,32 @@ get_action_data_table <- function(rdm_data, record_id) {
     # Get checkbox values and translate to labels
     # Competency checkboxes
     competency_cols <- grep("^ccc_competency___", names(row), value = TRUE)
-    competency_checked <- competency_cols[row[competency_cols] == "1"]
+    competency_checked <- c()
+    for (col in competency_cols) {
+      if (!is.na(row[[col]]) && as.character(row[[col]]) == "1") {
+        competency_checked <- c(competency_checked, col)
+      }
+    }
     competency_labels <- translate_checkbox_values(rdm_data$data_dict, "ccc_competency", competency_checked)
 
     # Action checkboxes
     action_cols <- grep("^ccc_action___", names(row), value = TRUE)
-    action_checked <- action_cols[row[action_cols] == "1"]
+    action_checked <- c()
+    for (col in action_cols) {
+      if (!is.na(row[[col]]) && as.character(row[[col]]) == "1") {
+        action_checked <- c(action_checked, col)
+      }
+    }
     action_labels <- translate_checkbox_values(rdm_data$data_dict, "ccc_action", action_checked)
 
     # Status checkboxes
     status_cols <- grep("^ccc_action_status___", names(row), value = TRUE)
-    status_checked <- status_cols[row[status_cols] == "1"]
+    status_checked <- c()
+    for (col in status_cols) {
+      if (!is.na(row[[col]]) && as.character(row[[col]]) == "1") {
+        status_checked <- c(status_checked, col)
+      }
+    }
     status_labels <- translate_checkbox_values(rdm_data$data_dict, "ccc_action_status", status_checked)
 
     result_list[[i]] <- data.frame(
