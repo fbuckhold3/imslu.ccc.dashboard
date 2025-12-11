@@ -41,7 +41,6 @@ if (!require("gmed", quietly = TRUE)) {
 REDCAP_CONFIG <- list(
   url = "https://redcapsurvey.slu.edu/api/",
   rdm_token = Sys.getenv("RDM_TOKEN"),
-  access_code = Sys.getenv("ACCESS_CODE"),
   timeout = 300  # 5 minutes for large data pulls
 )
 
@@ -50,9 +49,6 @@ if (!nzchar(REDCAP_CONFIG$rdm_token)) {
   stop("RDM_TOKEN not found. Please set in .Renviron file")
 }
 
-if (!nzchar(REDCAP_CONFIG$access_code)) {
-  stop("ACCESS_CODE not found. Please set in .Renviron file")
-}
 
 # ==============================================================================
 # PERIOD DEFINITIONS
