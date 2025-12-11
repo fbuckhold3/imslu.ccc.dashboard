@@ -3,10 +3,10 @@ library(dplyr)
 library(DT)
 library(purrr)
 library(plotly)
-library(gmed)
 library(REDCapR)
 library(bslib)
 library(lubridate)
+library(shinyjs)
 
 # Ensure pipe operator is available
 if (!exists("%>%")) {
