@@ -14,6 +14,7 @@ Imports:
     REDCapR,
     remotes,
     lubridate,
-    bslib
+    bslib,
+    shinyjs
 Remotes:
     fbuckhold3/gmed
