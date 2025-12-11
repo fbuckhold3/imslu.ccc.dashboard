@@ -49,7 +49,6 @@ if (!nzchar(REDCAP_CONFIG$rdm_token)) {
   stop("RDM_TOKEN not found. Please set in .Renviron file")
 }
 
-
 # ==============================================================================
 # PERIOD DEFINITIONS
 # ==============================================================================
