@@ -1612,34 +1612,38 @@ create_server <- function(initial_data) {
       filter(record_id == rid) %>%
       slice(1)
 
-    # Get plus/delta comments from S Eval data
-    s_eval_data <- get_form_data_for_period(
-      app_data()$all_forms,
-      "s_eval",
-      rid,
-      resident_info$current_period
-    )
+    # Get plus/delta comments from assessment data for current period
+    assessment_data <- if ("assessment" %in% names(app_data()$all_forms)) {
+      app_data()$all_forms$assessment %>%
+        filter(record_id == rid, !is.na(ass_period), ass_period == resident_info$current_period)
+    } else {
+      data.frame()
+    }
 
-    plus_delta_content <- if (nrow(s_eval_data) > 0) {
+    plus_delta_content <- if (nrow(assessment_data) > 0) {
       # Check if gmed has plus_delta_table function
       tryCatch({
         if (exists("create_plus_delta_table", where = "package:gmed", mode = "function")) {
           gmed::create_plus_delta_table(
-            s_eval_data = s_eval_data,
+            assessment_data = assessment_data,
             resident_id = rid,
             period = resident_info$current_period
           )
         } else {
           # Fallback: display raw plus/delta fields
-          plus_cols <- grep("^(plus|delta)_", names(s_eval_data), value = TRUE)
+          plus_cols <- grep("^(plus|delta)_", names(assessment_data), value = TRUE)
           if (length(plus_cols) > 0) {
             content_list <- list()
             for (col in plus_cols) {
-              if (!is.na(s_eval_data[[col]][1]) && nchar(trimws(s_eval_data[[col]][1])) > 0) {
+              # Collect all non-empty values for this column across all assessments
+              values <- assessment_data[[col]][!is.na(assessment_data[[col]]) & nchar(trimws(assessment_data[[col]])) > 0]
+              if (length(values) > 0) {
                 content_list <- c(content_list, list(
                   tags$div(
                     tags$strong(gsub("_", " ", tools::toTitleCase(col)), ":"),
-                    tags$p(s_eval_data[[col]][1])
+                    tags$ul(
+                      lapply(values, function(v) tags$li(v))
+                    )
                   ),
                   tags$hr()
                 ))
@@ -1658,7 +1662,7 @@ create_server <- function(initial_data) {
         tags$p("Error loading plus/delta comments: ", e$message)
       })
     } else {
-      tags$p("No self-evaluation data available for this period.")
+      tags$p("No assessment data available for this period.")
     }
 
     showModal(modalDialog(
