@@ -11,6 +11,7 @@ create_server <- function(initial_data) {
     selected_resident_id <- reactiveVal(NULL)
     show_list_view <- reactiveVal(TRUE)
     authenticated <- reactiveVal(FALSE)
+    filtered_review_table <- reactiveVal(NULL)
 
   # ===========================================================================
   # AUTHENTICATION
@@ -110,6 +111,54 @@ create_server <- function(initial_data) {
     paste(get_current_ccc_period(), "Reviews")
   })
 
+  # Dynamic coach filter dropdown
+  output$filter_coach_ui <- renderUI({
+    current_period <- get_current_ccc_period()
+    review_table <- get_ccc_review_table(app_data(), current_period)
+
+    if (nrow(review_table) == 0) {
+      return(selectInput("filter_coach", "Coach:", choices = c("All" = "all"), selected = "all"))
+    }
+
+    # Get unique coach names
+    coaches <- unique(review_table$coach_name)
+    coaches <- coaches[!is.na(coaches) & coaches != ""]
+    coaches <- sort(coaches)
+
+    choices <- c("All" = "all", setNames(coaches, coaches))
+
+    selectInput(
+      inputId = "filter_coach",
+      label = "Coach:",
+      choices = choices,
+      selected = "all"
+    )
+  })
+
+  # Dynamic second reviewer filter dropdown
+  output$filter_second_ui <- renderUI({
+    current_period <- get_current_ccc_period()
+    review_table <- get_ccc_review_table(app_data(), current_period)
+
+    if (nrow(review_table) == 0) {
+      return(selectInput("filter_second", "Second Reviewer:", choices = c("All" = "all"), selected = "all"))
+    }
+
+    # Get unique second reviewer names
+    second_revs <- unique(review_table$second_rev_name)
+    second_revs <- second_revs[!is.na(second_revs) & second_revs != ""]
+    second_revs <- sort(second_revs)
+
+    choices <- c("All" = "all", setNames(second_revs, second_revs))
+
+    selectInput(
+      inputId = "filter_second",
+      label = "Second Reviewer:",
+      choices = choices,
+      selected = "all"
+    )
+  })
+
   # Resident review table
   output$resident_review_table <- DT::renderDT({
     # Use automatic period detection
@@ -124,24 +173,82 @@ create_server <- function(initial_data) {
       return(data.frame(
         Resident = character(0),
         Level = character(0),
-        Coach = character(0),
-        Second = character(0),
-        CCC = character(0)
+        `Coach Name` = character(0),
+        `Coach Status` = character(0),
+        `Second Reviewer` = character(0),
+        `Second Status` = character(0),
+        CCC = character(0),
+        check.names = FALSE
       ))
     }
 
+    # Apply filters
+    filtered_table <- review_table
+
+    # Filter by completion status
+    if (!is.null(input$filter_completion) && input$filter_completion != "all") {
+      if (input$filter_completion == "all_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete & second_complete & ccc_complete)
+      } else if (input$filter_completion == "coach_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete)
+      } else if (input$filter_completion == "coach_second_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete & second_complete)
+      }
+    }
+
+    # Filter by PGY level
+    if (!is.null(input$filter_pgy) && input$filter_pgy != "all") {
+      filtered_table <- filtered_table %>%
+        filter(pgy_level == input$filter_pgy)
+    }
+
+    # Filter by coach
+    if (!is.null(input$filter_coach) && input$filter_coach != "all") {
+      filtered_table <- filtered_table %>%
+        filter(!is.na(coach_name) & coach_name == input$filter_coach)
+    }
+
+    # Filter by second reviewer
+    if (!is.null(input$filter_second) && input$filter_second != "all") {
+      filtered_table <- filtered_table %>%
+        filter(!is.na(second_rev_name) & second_rev_name == input$filter_second)
+    }
+
+    if (nrow(filtered_table) == 0) {
+      return(data.frame(
+        Resident = character(0),
+        Level = character(0),
+        `Coach Name` = character(0),
+        `Coach Status` = character(0),
+        `Second Reviewer` = character(0),
+        `Second Status` = character(0),
+        CCC = character(0),
+        check.names = FALSE
+      ))
+    }
+
+    # Store the filtered table for row selection
+    filtered_review_table(filtered_table)
+
     # Format for display
-    display_table <- review_table %>%
+    display_table <- filtered_table %>%
       select(
         Resident = resident,
         Level = level,
-        Coach = coach_complete,
-        Second = second_complete,
+        `Coach Name` = coach_name,
+        `Coach Status` = coach_complete,
+        `Second Reviewer` = second_rev_name,
+        `Second Status` = second_complete,
         CCC = ccc_complete
       ) %>%
       mutate(
-        Coach = ifelse(Coach, "✓", "✗"),
-        Second = ifelse(Second, "✓", "✗"),
+        `Coach Name` = ifelse(is.na(`Coach Name`), "", `Coach Name`),
+        `Second Reviewer` = ifelse(is.na(`Second Reviewer`), "", `Second Reviewer`),
+        `Coach Status` = ifelse(`Coach Status`, "✓", "✗"),
+        `Second Status` = ifelse(`Second Status`, "✓", "✗"),
         CCC = ifelse(CCC, "✓", "✗")
       )
 
@@ -155,11 +262,11 @@ create_server <- function(initial_data) {
       )
     ) %>%
       DT::formatStyle(
-        'Coach',
+        'Coach Status',
         color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
       ) %>%
       DT::formatStyle(
-        'Second',
+        'Second Status',
         color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
       ) %>%
       DT::formatStyle(
@@ -177,10 +284,45 @@ create_server <- function(initial_data) {
       current_period
     )
 
-    total <- nrow(review_table)
-    coach_completed <- sum(review_table$coach_complete, na.rm = TRUE)
-    second_completed <- sum(review_table$second_complete, na.rm = TRUE)
-    ccc_completed <- sum(review_table$ccc_complete, na.rm = TRUE)
+    # Apply same filters as the table
+    filtered_table <- review_table
+
+    # Filter by completion status
+    if (!is.null(input$filter_completion) && input$filter_completion != "all") {
+      if (input$filter_completion == "all_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete & second_complete & ccc_complete)
+      } else if (input$filter_completion == "coach_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete)
+      } else if (input$filter_completion == "coach_second_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete & second_complete)
+      }
+    }
+
+    # Filter by PGY level
+    if (!is.null(input$filter_pgy) && input$filter_pgy != "all") {
+      filtered_table <- filtered_table %>%
+        filter(pgy_level == input$filter_pgy)
+    }
+
+    # Filter by coach
+    if (!is.null(input$filter_coach) && input$filter_coach != "all") {
+      filtered_table <- filtered_table %>%
+        filter(!is.na(coach_name) & coach_name == input$filter_coach)
+    }
+
+    # Filter by second reviewer
+    if (!is.null(input$filter_second) && input$filter_second != "all") {
+      filtered_table <- filtered_table %>%
+        filter(!is.na(second_rev_name) & second_rev_name == input$filter_second)
+    }
+
+    total <- nrow(filtered_table)
+    coach_completed <- sum(filtered_table$coach_complete, na.rm = TRUE)
+    second_completed <- sum(filtered_table$second_complete, na.rm = TRUE)
+    ccc_completed <- sum(filtered_table$ccc_complete, na.rm = TRUE)
 
     tagList(
       p(
@@ -196,12 +338,12 @@ create_server <- function(initial_data) {
   observeEvent(input$resident_review_table_rows_selected, {
     req(input$resident_review_table_rows_selected)
 
-    current_period <- get_current_ccc_period()
+    # Use the filtered review table
+    review_table <- filtered_review_table()
 
-    review_table <- get_ccc_review_table(
-      app_data(),
-      current_period
-    )
+    if (is.null(review_table) || nrow(review_table) == 0) {
+      return()
+    }
 
     selected_rid <- review_table$record_id[input$resident_review_table_rows_selected]
     selected_resident_id(selected_rid)

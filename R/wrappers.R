@@ -83,6 +83,11 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
     )
 
     coach_complete <- nrow(coach_data) > 0
+    coach_name <- if (coach_complete && "coach" %in% names(coach_data)) {
+      as.character(coach_data$coach[1])
+    } else {
+      NA_character_
+    }
 
     # Check second review completion
     second_data <- get_form_data_for_period(
@@ -93,6 +98,11 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
     )
 
     second_complete <- nrow(second_data) > 0
+    second_rev_name <- if (second_complete && "second_rev" %in% names(second_data)) {
+      as.character(second_data$second_rev[1])
+    } else {
+      NA_character_
+    }
 
     # Check CCC review completion
     ccc_data <- get_form_data_for_period(
@@ -104,11 +114,29 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
 
     ccc_complete <- nrow(ccc_data) > 0
 
+    # Determine PGY level from current period
+    pgy_level <- if (!is.na(res$current_period)) {
+      if (grepl("Intern", res$current_period)) {
+        "Intern"
+      } else if (grepl("PGY2", res$current_period)) {
+        "PGY2"
+      } else if (grepl("PGY3|Graduating", res$current_period)) {
+        "PGY3"
+      } else {
+        NA_character_
+      }
+    } else {
+      NA_character_
+    }
+
     data.frame(
       record_id = res$record_id,
       resident = res$full_name,
       level = res$current_period,
+      pgy_level = pgy_level,
       expected_period = res$current_period,
+      coach_name = coach_name,
+      second_rev_name = second_rev_name,
       coach_complete = coach_complete,
       second_complete = second_complete,
       ccc_complete = ccc_complete,

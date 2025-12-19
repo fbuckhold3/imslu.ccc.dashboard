@@ -122,6 +122,48 @@ ui <- gmed::gmed_page(
           column(
             width = 9,
             gmed::gmed_card(
+              title = "Filters",
+              fluidRow(
+                column(
+                  width = 3,
+                  selectInput(
+                    inputId = "filter_completion",
+                    label = "Review Status:",
+                    choices = c(
+                      "All" = "all",
+                      "All Done" = "all_done",
+                      "Coach Done" = "coach_done",
+                      "Coach & Second Done" = "coach_second_done"
+                    ),
+                    selected = "all"
+                  )
+                ),
+                column(
+                  width = 3,
+                  selectInput(
+                    inputId = "filter_pgy",
+                    label = "PGY Level:",
+                    choices = c(
+                      "All" = "all",
+                      "Intern" = "Intern",
+                      "PGY2" = "PGY2",
+                      "PGY3" = "PGY3"
+                    ),
+                    selected = "all"
+                  )
+                ),
+                column(
+                  width = 3,
+                  uiOutput("filter_coach_ui")
+                ),
+                column(
+                  width = 3,
+                  uiOutput("filter_second_ui")
+                )
+              )
+            ),
+            tags$br(),
+            gmed::gmed_card(
               title = "Residents for Review",
               DT::DTOutput("resident_review_table")
             )
