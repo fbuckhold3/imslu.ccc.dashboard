@@ -122,6 +122,48 @@ ui <- gmed::gmed_page(
           column(
             width = 9,
             gmed::gmed_card(
+              title = "Filters",
+              tags$div(
+                tags$strong("Review Status:"),
+                tags$br(),
+                tags$div(
+                  style = "margin: 10px 0;",
+                  actionButton("filter_all", "All", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_all_done", "All Done", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_coach_done", "Coach Done", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_coach_second_done", "Coach & Second Done", class = "btn-sm")
+                )
+              ),
+              tags$hr(style = "margin: 15px 0;"),
+              tags$div(
+                tags$strong("PGY Level:"),
+                tags$br(),
+                tags$div(
+                  style = "margin: 10px 0;",
+                  actionButton("filter_pgy_all", "All", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_pgy_intern", "Intern", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_pgy_pgy2", "PGY2", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_pgy_pgy3", "PGY3", class = "btn-sm")
+                )
+              ),
+              tags$hr(style = "margin: 15px 0;"),
+              fluidRow(
+                column(
+                  width = 6,
+                  tags$strong("Coach:"),
+                  tags$br(),
+                  uiOutput("filter_coach_buttons")
+                ),
+                column(
+                  width = 6,
+                  tags$strong("Second Reviewer:"),
+                  tags$br(),
+                  uiOutput("filter_second_buttons")
+                )
+              )
+            ),
+            tags$br(),
+            gmed::gmed_card(
               title = "Residents for Review",
               DT::DTOutput("resident_review_table")
             )

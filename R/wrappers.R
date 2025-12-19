@@ -74,6 +74,39 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
   purrr::map_dfr(1:nrow(residents_for_review), function(i) {
     res <- residents_for_review[i, ]
 
+    # Get coach and second reviewer names from residents data
+    coach_name <- if ("coach" %in% names(res) && !is.na(res$coach)) {
+      as.character(res$coach)
+    } else {
+      NA_character_
+    }
+
+    second_rev_name <- if ("second_rev" %in% names(res) && !is.na(res$second_rev)) {
+      as.character(res$second_rev)
+    } else {
+      NA_character_
+    }
+
+    # Translate coach name if it's a code
+    if (!is.na(coach_name) && !is.null(rdm_data$data_dict)) {
+      if ("coach" %in% rdm_data$data_dict$field_name) {
+        choices <- get_field_choices(rdm_data$data_dict, "coach")
+        if (length(choices) > 0 && coach_name %in% names(choices)) {
+          coach_name <- as.character(choices[coach_name])
+        }
+      }
+    }
+
+    # Translate second reviewer name if it's a code
+    if (!is.na(second_rev_name) && !is.null(rdm_data$data_dict)) {
+      if ("second_rev" %in% rdm_data$data_dict$field_name) {
+        choices <- get_field_choices(rdm_data$data_dict, "second_rev")
+        if (length(choices) > 0 && second_rev_name %in% names(choices)) {
+          second_rev_name <- as.character(choices[second_rev_name])
+        }
+      }
+    }
+
     # Check coach review completion
     coach_data <- get_form_data_for_period(
       rdm_data$all_forms,
@@ -104,11 +137,29 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
 
     ccc_complete <- nrow(ccc_data) > 0
 
+    # Determine PGY level from current period
+    pgy_level <- if (!is.na(res$current_period)) {
+      if (grepl("Intern", res$current_period)) {
+        "Intern"
+      } else if (grepl("PGY2", res$current_period)) {
+        "PGY2"
+      } else if (grepl("PGY3|Graduating", res$current_period)) {
+        "PGY3"
+      } else {
+        NA_character_
+      }
+    } else {
+      NA_character_
+    }
+
     data.frame(
       record_id = res$record_id,
       resident = res$full_name,
       level = res$current_period,
+      pgy_level = pgy_level,
       expected_period = res$current_period,
+      coach_name = coach_name,
+      second_rev_name = second_rev_name,
       coach_complete = coach_complete,
       second_complete = second_complete,
       ccc_complete = ccc_complete,

@@ -11,6 +11,13 @@ create_server <- function(initial_data) {
     selected_resident_id <- reactiveVal(NULL)
     show_list_view <- reactiveVal(TRUE)
     authenticated <- reactiveVal(FALSE)
+    filtered_review_table <- reactiveVal(NULL)
+
+    # Filter reactive values
+    filter_completion <- reactiveVal("all")
+    filter_pgy <- reactiveVal("all")
+    filter_coach <- reactiveVal("all")
+    filter_second <- reactiveVal("all")
 
   # ===========================================================================
   # AUTHENTICATION
@@ -110,6 +117,134 @@ create_server <- function(initial_data) {
     paste(get_current_ccc_period(), "Reviews")
   })
 
+  # ===========================================================================
+  # FILTER BUTTON OBSERVERS
+  # ===========================================================================
+
+  # Review status filters
+  observeEvent(input$filter_all, { filter_completion("all") })
+  observeEvent(input$filter_all_done, { filter_completion("all_done") })
+  observeEvent(input$filter_coach_done, { filter_completion("coach_done") })
+  observeEvent(input$filter_coach_second_done, { filter_completion("coach_second_done") })
+
+  # PGY level filters
+  observeEvent(input$filter_pgy_all, { filter_pgy("all") })
+  observeEvent(input$filter_pgy_intern, { filter_pgy("Intern") })
+  observeEvent(input$filter_pgy_pgy2, { filter_pgy("PGY2") })
+  observeEvent(input$filter_pgy_pgy3, { filter_pgy("PGY3") })
+
+  # Dynamic coach filter buttons
+  output$filter_coach_buttons <- renderUI({
+    current_period <- get_current_ccc_period()
+    review_table <- get_ccc_review_table(app_data(), current_period)
+
+    if (nrow(review_table) == 0) {
+      return(tags$div(style = "margin: 10px 0;", actionButton("filter_coach_all", "All", class = "btn-sm")))
+    }
+
+    # Get unique coach names
+    coaches <- unique(review_table$coach_name)
+    coaches <- coaches[!is.na(coaches) & coaches != ""]
+    coaches <- sort(coaches)
+
+    # Create buttons
+    buttons <- list(
+      actionButton("filter_coach_all", "All", class = "btn-sm", style = "margin: 5px 5px 5px 0;")
+    )
+
+    for (coach in coaches) {
+      btn_id <- paste0("filter_coach_", gsub("[^A-Za-z0-9]", "_", coach))
+      buttons <- c(buttons, list(
+        actionButton(btn_id, coach, class = "btn-sm", style = "margin: 5px 5px 5px 0;")
+      ))
+    }
+
+    tags$div(style = "margin: 10px 0;", buttons)
+  })
+
+  # Dynamic second reviewer filter buttons
+  output$filter_second_buttons <- renderUI({
+    current_period <- get_current_ccc_period()
+    review_table <- get_ccc_review_table(app_data(), current_period)
+
+    if (nrow(review_table) == 0) {
+      return(tags$div(style = "margin: 10px 0;", actionButton("filter_second_all", "All", class = "btn-sm")))
+    }
+
+    # Get unique second reviewer names
+    second_revs <- unique(review_table$second_rev_name)
+    second_revs <- second_revs[!is.na(second_revs) & second_revs != ""]
+    second_revs <- sort(second_revs)
+
+    # Create buttons
+    buttons <- list(
+      actionButton("filter_second_all", "All", class = "btn-sm", style = "margin: 5px 5px 5px 0;")
+    )
+
+    for (second_rev in second_revs) {
+      btn_id <- paste0("filter_second_", gsub("[^A-Za-z0-9]", "_", second_rev))
+      buttons <- c(buttons, list(
+        actionButton(btn_id, second_rev, class = "btn-sm", style = "margin: 5px 5px 5px 0;")
+      ))
+    }
+
+    tags$div(style = "margin: 10px 0;", buttons)
+  })
+
+  # Observe coach button clicks
+  observe({
+    current_period <- get_current_ccc_period()
+    review_table <- get_ccc_review_table(app_data(), current_period)
+
+    if (nrow(review_table) > 0) {
+      coaches <- unique(review_table$coach_name)
+      coaches <- coaches[!is.na(coaches) & coaches != ""]
+
+      # All button
+      observeEvent(input$filter_coach_all, {
+        filter_coach("all")
+      }, ignoreInit = TRUE)
+
+      # Individual coach buttons
+      for (coach in coaches) {
+        local({
+          coach_name <- coach
+          btn_id <- paste0("filter_coach_", gsub("[^A-Za-z0-9]", "_", coach_name))
+          observeEvent(input[[btn_id]], {
+            filter_coach(coach_name)
+          }, ignoreInit = TRUE)
+        })
+      }
+    }
+  })
+
+  # Observe second reviewer button clicks
+  observe({
+    current_period <- get_current_ccc_period()
+    review_table <- get_ccc_review_table(app_data(), current_period)
+
+    if (nrow(review_table) > 0) {
+      second_revs <- unique(review_table$second_rev_name)
+      second_revs <- second_revs[!is.na(second_revs) & second_revs != ""]
+
+      # All button
+      observeEvent(input$filter_second_all, {
+        filter_second("all")
+      }, ignoreInit = TRUE)
+
+      # Individual second reviewer buttons
+      for (second_rev in second_revs) {
+        local({
+          second_rev_name <- second_rev
+          btn_id <- paste0("filter_second_", gsub("[^A-Za-z0-9]", "_", second_rev_name))
+          observeEvent(input[[btn_id]], {
+            filter_second(second_rev_name)
+          }, ignoreInit = TRUE)
+        })
+      }
+    }
+  })
+
   # Resident review table
   output$resident_review_table <- DT::renderDT({
     # Use automatic period detection
@@ -120,28 +255,92 @@ create_server <- function(initial_data) {
       current_period
     )
 
+    # Trigger reactivity on filter changes
+    completion_filter <- filter_completion()
+    pgy_filter <- filter_pgy()
+    coach_filter <- filter_coach()
+    second_filter <- filter_second()
+
     if (nrow(review_table) == 0) {
       return(data.frame(
         Resident = character(0),
         Level = character(0),
-        Coach = character(0),
-        Second = character(0),
-        CCC = character(0)
+        `Coach Name` = character(0),
+        `Coach Status` = character(0),
+        `Second Reviewer` = character(0),
+        `Second Status` = character(0),
+        CCC = character(0),
+        check.names = FALSE
       ))
     }
 
+    # Apply filters
+    filtered_table <- review_table
+
+    # Filter by completion status
+    if (completion_filter != "all") {
+      if (completion_filter == "all_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete & second_complete & ccc_complete)
+      } else if (completion_filter == "coach_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete)
+      } else if (completion_filter == "coach_second_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete & second_complete)
+      }
+    }
+
+    # Filter by PGY level
+    if (pgy_filter != "all") {
+      filtered_table <- filtered_table %>%
+        filter(pgy_level == pgy_filter)
+    }
+
+    # Filter by coach
+    if (coach_filter != "all") {
+      filtered_table <- filtered_table %>%
+        filter(!is.na(coach_name) & coach_name == coach_filter)
+    }
+
+    # Filter by second reviewer
+    if (second_filter != "all") {
+      filtered_table <- filtered_table %>%
+        filter(!is.na(second_rev_name) & second_rev_name == second_filter)
+    }
+
+    if (nrow(filtered_table) == 0) {
+      return(data.frame(
+        Resident = character(0),
+        Level = character(0),
+        `Coach Name` = character(0),
+        `Coach Status` = character(0),
+        `Second Reviewer` = character(0),
+        `Second Status` = character(0),
+        CCC = character(0),
+        check.names = FALSE
+      ))
+    }
+
+    # Store the filtered table for row selection
+    filtered_review_table(filtered_table)
+
     # Format for display
-    display_table <- review_table %>%
+    display_table <- filtered_table %>%
       select(
         Resident = resident,
         Level = level,
-        Coach = coach_complete,
-        Second = second_complete,
+        `Coach Name` = coach_name,
+        `Coach Status` = coach_complete,
+        `Second Reviewer` = second_rev_name,
+        `Second Status` = second_complete,
         CCC = ccc_complete
       ) %>%
       mutate(
-        Coach = ifelse(Coach, "✓", "✗"),
-        Second = ifelse(Second, "✓", "✗"),
+        `Coach Name` = ifelse(is.na(`Coach Name`), "", `Coach Name`),
+        `Second Reviewer` = ifelse(is.na(`Second Reviewer`), "", `Second Reviewer`),
+        `Coach Status` = ifelse(`Coach Status`, "✓", "✗"),
+        `Second Status` = ifelse(`Second Status`, "✓", "✗"),
         CCC = ifelse(CCC, "✓", "✗")
       )
 
@@ -155,11 +354,11 @@ create_server <- function(initial_data) {
       )
     ) %>%
       DT::formatStyle(
-        'Coach',
+        'Coach Status',
         color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
       ) %>%
       DT::formatStyle(
-        'Second',
+        'Second Status',
         color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
       ) %>%
       DT::formatStyle(
@@ -177,10 +376,51 @@ create_server <- function(initial_data) {
       current_period
     )
 
-    total <- nrow(review_table)
-    coach_completed <- sum(review_table$coach_complete, na.rm = TRUE)
-    second_completed <- sum(review_table$second_complete, na.rm = TRUE)
-    ccc_completed <- sum(review_table$ccc_complete, na.rm = TRUE)
+    # Trigger reactivity on filter changes
+    completion_filter <- filter_completion()
+    pgy_filter <- filter_pgy()
+    coach_filter <- filter_coach()
+    second_filter <- filter_second()
+
+    # Apply same filters as the table
+    filtered_table <- review_table
+
+    # Filter by completion status
+    if (completion_filter != "all") {
+      if (completion_filter == "all_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete & second_complete & ccc_complete)
+      } else if (completion_filter == "coach_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete)
+      } else if (completion_filter == "coach_second_done") {
+        filtered_table <- filtered_table %>%
+          filter(coach_complete & second_complete)
+      }
+    }
+
+    # Filter by PGY level
+    if (pgy_filter != "all") {
+      filtered_table <- filtered_table %>%
+        filter(pgy_level == pgy_filter)
+    }
+
+    # Filter by coach
+    if (coach_filter != "all") {
+      filtered_table <- filtered_table %>%
+        filter(!is.na(coach_name) & coach_name == coach_filter)
+    }
+
+    # Filter by second reviewer
+    if (second_filter != "all") {
+      filtered_table <- filtered_table %>%
+        filter(!is.na(second_rev_name) & second_rev_name == second_filter)
+    }
+
+    total <- nrow(filtered_table)
+    coach_completed <- sum(filtered_table$coach_complete, na.rm = TRUE)
+    second_completed <- sum(filtered_table$second_complete, na.rm = TRUE)
+    ccc_completed <- sum(filtered_table$ccc_complete, na.rm = TRUE)
 
     tagList(
       p(
@@ -196,12 +436,12 @@ create_server <- function(initial_data) {
   observeEvent(input$resident_review_table_rows_selected, {
     req(input$resident_review_table_rows_selected)
 
-    current_period <- get_current_ccc_period()
+    # Use the filtered review table
+    review_table <- filtered_review_table()
 
-    review_table <- get_ccc_review_table(
-      app_data(),
-      current_period
-    )
+    if (is.null(review_table) || nrow(review_table) == 0) {
+      return()
+    }
 
     selected_rid <- review_table$record_id[input$resident_review_table_rows_selected]
     selected_resident_id(selected_rid)
