@@ -477,7 +477,7 @@ create_server <- function(initial_data) {
 
       h4("Milestone Review and Data Entry", style = "margin-top: 20px;"),
       fluidRow(
-        # Left column (1/3): Editable milestone table and descriptions
+        # Left column (1/3): Editable milestone table
         column(
           width = 4,
           gmed::gmed_card(
@@ -495,16 +495,6 @@ create_server <- function(initial_data) {
               class = "btn-warning w-100",
               icon = icon("save")
             )
-          ),
-          tags$br(),
-          gmed::gmed_card(
-            title = "Milestone Descriptions",
-            p(
-              class = "text-muted",
-              style = "font-size: 0.9em;",
-              "Descriptions provided for specific competencies during this period."
-            ),
-            DT::DTOutput("milestone_descriptions_table")
           )
         ),
 
@@ -520,6 +510,47 @@ create_server <- function(initial_data) {
           br(),
           h5("Self-Evaluation (Current Period)"),
           plotly::plotlyOutput("plot_self_spider", height = "450px")
+        )
+      ),
+      tags$br(),
+
+      # Additional Data Buttons
+      fluidRow(
+        column(
+          width = 12,
+          gmed::gmed_card(
+            title = "Additional Data",
+            actionButton(
+              "view_plus_delta",
+              "View Plus/Delta Comments",
+              class = "btn-info",
+              icon = icon("comments"),
+              style = "margin-right: 10px;"
+            ),
+            actionButton(
+              "view_ilp_goals",
+              "View Current ILP Goals",
+              class = "btn-info",
+              icon = icon("bullseye")
+            )
+          )
+        )
+      ),
+      tags$br(),
+
+      # Milestone Descriptions - Full Width
+      fluidRow(
+        column(
+          width = 12,
+          gmed::gmed_card(
+            title = "Milestone Descriptions",
+            p(
+              class = "text-muted",
+              style = "font-size: 0.9em;",
+              "Descriptions provided for specific competencies during this period."
+            ),
+            DT::DTOutput("milestone_descriptions_table")
+          )
         )
       ),
       hr(),
@@ -1570,6 +1601,131 @@ create_server <- function(initial_data) {
         duration = 5
       )
     }
+  })
+
+  # View Plus/Delta Comments
+  observeEvent(input$view_plus_delta, {
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    # Get plus/delta comments from S Eval data
+    s_eval_data <- get_form_data_for_period(
+      app_data()$all_forms,
+      "s_eval",
+      rid,
+      resident_info$current_period
+    )
+
+    plus_delta_content <- if (nrow(s_eval_data) > 0) {
+      # Check if gmed has plus_delta_table function
+      tryCatch({
+        if (exists("create_plus_delta_table", where = "package:gmed", mode = "function")) {
+          gmed::create_plus_delta_table(
+            s_eval_data = s_eval_data,
+            resident_id = rid,
+            period = resident_info$current_period
+          )
+        } else {
+          # Fallback: display raw plus/delta fields
+          plus_cols <- grep("^(plus|delta)_", names(s_eval_data), value = TRUE)
+          if (length(plus_cols) > 0) {
+            content_list <- list()
+            for (col in plus_cols) {
+              if (!is.na(s_eval_data[[col]][1]) && nchar(trimws(s_eval_data[[col]][1])) > 0) {
+                content_list <- c(content_list, list(
+                  tags$div(
+                    tags$strong(gsub("_", " ", tools::toTitleCase(col)), ":"),
+                    tags$p(s_eval_data[[col]][1])
+                  ),
+                  tags$hr()
+                ))
+              }
+            }
+            if (length(content_list) > 0) {
+              do.call(tagList, content_list)
+            } else {
+              tags$p("No plus/delta comments available for this period.")
+            }
+          } else {
+            tags$p("No plus/delta comments available for this period.")
+          }
+        }
+      }, error = function(e) {
+        tags$p("Error loading plus/delta comments: ", e$message)
+      })
+    } else {
+      tags$p("No self-evaluation data available for this period.")
+    }
+
+    showModal(modalDialog(
+      title = paste("Plus/Delta Comments -", resident_info$full_name, "-", resident_info$current_period),
+      plus_delta_content,
+      size = "l",
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
+  })
+
+  # View Current ILP Goals
+  observeEvent(input$view_ilp_goals, {
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    # Get all coach reviews for this resident (all periods)
+    all_coach_reviews <- app_data()$all_forms$coach_rev %>%
+      filter(record_id == rid, redcap_repeat_instrument == "coach_rev") %>%
+      arrange(desc(coach_period))
+
+    ilp_content <- if (nrow(all_coach_reviews) > 0) {
+      # Look for ILP goals in recent reviews
+      ilp_list <- list()
+      for (i in 1:min(3, nrow(all_coach_reviews))) {
+        review <- all_coach_reviews[i, ]
+        period <- if ("coach_period" %in% names(review)) review$coach_period else "Unknown"
+
+        # Look for ILP-related fields
+        ilp_fields <- grep("ilp|goal", names(review), value = TRUE, ignore.case = TRUE)
+
+        if (length(ilp_fields) > 0) {
+          for (field in ilp_fields) {
+            if (!is.na(review[[field]]) && nchar(trimws(as.character(review[[field]]))) > 0) {
+              ilp_list <- c(ilp_list, list(
+                tags$div(
+                  tags$h5(paste("Period:", period)),
+                  tags$strong(gsub("_", " ", tools::toTitleCase(field)), ":"),
+                  tags$p(as.character(review[[field]])),
+                  tags$hr()
+                )
+              ))
+            }
+          }
+        }
+      }
+
+      if (length(ilp_list) > 0) {
+        do.call(tagList, ilp_list)
+      } else {
+        tags$p("No ILP goals found in recent coach reviews.")
+      }
+    } else {
+      tags$p("No coach review data available.")
+    }
+
+    showModal(modalDialog(
+      title = paste("Current ILP Goals -", resident_info$full_name),
+      ilp_content,
+      size = "l",
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
   })
 
   # ===========================================================================
