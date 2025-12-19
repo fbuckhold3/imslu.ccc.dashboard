@@ -123,42 +123,42 @@ ui <- gmed::gmed_page(
             width = 9,
             gmed::gmed_card(
               title = "Filters",
+              tags$div(
+                tags$strong("Review Status:"),
+                tags$br(),
+                tags$div(
+                  style = "margin: 10px 0;",
+                  actionButton("filter_all", "All", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_all_done", "All Done", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_coach_done", "Coach Done", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_coach_second_done", "Coach & Second Done", class = "btn-sm")
+                )
+              ),
+              tags$hr(style = "margin: 15px 0;"),
+              tags$div(
+                tags$strong("PGY Level:"),
+                tags$br(),
+                tags$div(
+                  style = "margin: 10px 0;",
+                  actionButton("filter_pgy_all", "All", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_pgy_intern", "Intern", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_pgy_pgy2", "PGY2", class = "btn-sm", style = "margin-right: 5px;"),
+                  actionButton("filter_pgy_pgy3", "PGY3", class = "btn-sm")
+                )
+              ),
+              tags$hr(style = "margin: 15px 0;"),
               fluidRow(
                 column(
-                  width = 3,
-                  selectInput(
-                    inputId = "filter_completion",
-                    label = "Review Status:",
-                    choices = c(
-                      "All" = "all",
-                      "All Done" = "all_done",
-                      "Coach Done" = "coach_done",
-                      "Coach & Second Done" = "coach_second_done"
-                    ),
-                    selected = "all"
-                  )
+                  width = 6,
+                  tags$strong("Coach:"),
+                  tags$br(),
+                  uiOutput("filter_coach_buttons")
                 ),
                 column(
-                  width = 3,
-                  selectInput(
-                    inputId = "filter_pgy",
-                    label = "PGY Level:",
-                    choices = c(
-                      "All" = "all",
-                      "Intern" = "Intern",
-                      "PGY2" = "PGY2",
-                      "PGY3" = "PGY3"
-                    ),
-                    selected = "all"
-                  )
-                ),
-                column(
-                  width = 3,
-                  uiOutput("filter_coach_ui")
-                ),
-                column(
-                  width = 3,
-                  uiOutput("filter_second_ui")
+                  width = 6,
+                  tags$strong("Second Reviewer:"),
+                  tags$br(),
+                  uiOutput("filter_second_buttons")
                 )
               )
             ),
