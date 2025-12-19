@@ -1614,8 +1614,20 @@ create_server <- function(initial_data) {
 
     # Get plus/delta comments from assessment data for current period
     assessment_data <- if ("assessment" %in% names(app_data()$all_forms)) {
-      app_data()$all_forms$assessment %>%
-        filter(record_id == rid, !is.na(ass_period), ass_period == resident_info$current_period)
+      all_assessments <- app_data()$all_forms$assessment %>%
+        filter(record_id == rid)
+
+      # Try to filter by period if the field exists
+      if ("ass_period" %in% names(all_assessments)) {
+        all_assessments %>%
+          filter(!is.na(ass_period), ass_period == resident_info$current_period)
+      } else if ("assessment_period" %in% names(all_assessments)) {
+        all_assessments %>%
+          filter(!is.na(assessment_period), assessment_period == resident_info$current_period)
+      } else {
+        # If no period field, return all assessments for this resident
+        all_assessments
+      }
     } else {
       data.frame()
     }
