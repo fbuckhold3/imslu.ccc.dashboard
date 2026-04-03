@@ -482,6 +482,64 @@ h5 {
 }
 
 /* --------------------------------------------------------------------------
+   Ad Hoc tab — oversized resident search box
+   -------------------------------------------------------------------------- */
+
+.adhoc-search-wrap .selectize-control.single .selectize-input {
+  font-size: 1.15rem !important;
+  font-weight: 600 !important;
+  padding: .65rem 1rem !important;
+  min-height: 52px !important;
+  border: 2px solid #c7d2e6 !important;
+  border-radius: 0.65rem !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07) !important;
+  transition: border-color .18s ease, box-shadow .18s ease !important;
+  color: #1a202c !important;
+  cursor: text !important;
+}
+
+.adhoc-search-wrap .selectize-control.single .selectize-input:hover {
+  border-color: #93a8d0 !important;
+}
+
+.adhoc-search-wrap .selectize-control.single .selectize-input.focus {
+  border-color: var(--slu-blue) !important;
+  box-shadow: 0 0 0 4px rgba(0,48,135,.14) !important;
+  outline: none !important;
+}
+
+.adhoc-search-wrap .selectize-control.single .selectize-input input {
+  font-size: 1.15rem !important;
+  color: #1a202c !important;
+}
+
+.adhoc-search-wrap .selectize-dropdown {
+  font-size: 1.05rem !important;
+  border: 2px solid var(--slu-blue) !important;
+  border-top: none !important;
+  border-radius: 0 0 0.65rem 0.65rem !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.13) !important;
+}
+
+.adhoc-search-wrap .selectize-dropdown .option {
+  padding: .55rem 1rem !important;
+  line-height: 1.4 !important;
+  cursor: pointer !important;
+}
+
+.adhoc-search-wrap .selectize-dropdown .option.active {
+  background: var(--slu-blue-light) !important;
+  color: var(--slu-blue) !important;
+  font-weight: 600 !important;
+}
+
+.adhoc-search-wrap .selectize-control.single .selectize-input > .item {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  color: var(--slu-blue) !important;
+}
+
+/* --------------------------------------------------------------------------
    Responsive override (small screens — restore normal sizing)
    -------------------------------------------------------------------------- */
 @media (max-width: 1280px) {

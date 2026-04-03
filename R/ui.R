@@ -206,15 +206,25 @@ ui <- gmed::gmed_page(
         column(
           width = 3,
           gmed::gmed_card(
-            title = "Select Resident",
-            selectizeInput(
-              inputId = "adhoc_resident",
-              label = "Resident:",
-              choices = NULL,  # Populated in server
-              selected = NULL,
-              options = list(
-                placeholder = "Type to search...",
-                maxOptions = 100
+            title = "Resident Search",
+            tags$div(
+              class = "adhoc-search-wrap",
+              tags$p(
+                class = "text-muted",
+                style = "font-size:0.9rem; margin-bottom:0.75rem;",
+                icon("magnifying-glass"),
+                " Type any part of the name to filter."
+              ),
+              selectizeInput(
+                inputId = "adhoc_resident",
+                label   = NULL,
+                choices = NULL,
+                selected = NULL,
+                width   = "100%",
+                options = list(
+                  placeholder = "Search resident name…",
+                  maxOptions  = 200
+                )
               )
             )
           )
