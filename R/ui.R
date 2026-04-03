@@ -6,6 +6,9 @@ ui <- gmed::gmed_page(
   base_font = "Inter",
   heading_font = "Inter",
 
+  # Enable shinyjs
+  shinyjs::useShinyjs(),
+
   # Custom CSS and JavaScript
   tags$head(
     tags$link(rel = "stylesheet", type = "text/css", href = "custom.css"),
@@ -233,30 +236,235 @@ ui <- gmed::gmed_page(
 
       br(),
 
-      fluidRow(
-        column(
-          width = 12,
-          gmed::gmed_card(
-            title = "Milestone Analysis Dashboard",
-            tags$div(
-              style = "padding: 40px; text-align: center;",
-              tags$h4("Milestone Analysis Coming Soon", style = "color: #6c757d; margin-bottom: 20px;"),
-              tags$p(
-                "This section will provide comprehensive milestone analysis tools including:",
-                style = "color: #6c757d; font-size: 16px; margin-bottom: 10px;"
-              ),
-              tags$ul(
-                style = "list-style: none; padding: 0; color: #6c757d; font-size: 14px;",
-                tags$li(icon("chart-line"), " Cohort performance trends"),
-                tags$li(icon("users"), " Comparative resident analysis"),
-                tags$li(icon("graduation-cap"), " Competency progression tracking"),
-                tags$li(icon("file-export"), " Custom report generation")
+      tabsetPanel(
+        id   = "ms_subtabs",
+        type = "tabs",
+
+        # -------------------------------------------------------------------
+        # MILESTONE SUB-TAB 1: PROGRAM TRENDS
+        # -------------------------------------------------------------------
+        tabPanel(
+          title = "Program Trends",
+          value = "ms_program",
+          br(),
+
+          fluidRow(
+            # Left — filters
+            column(width = 3,
+              gmed::gmed_card(
+                title = "Filters",
+                selectInput("ms_category", "Competency Category:",
+                  choices  = c("All", "PC", "MK", "SBP", "PBL", "PROF", "ICS"),
+                  selected = "All", width = "100%"),
+                selectInput("ms_specific", "Specific Subcompetency:",
+                  choices  = c("All (Average)" = "__all__"),
+                  selected = "__all__", width = "100%"),
+                tags$hr(),
+                checkboxInput("ms_show_cohorts",
+                  "Color boxes by graduation year", value = FALSE),
+                checkboxInput("ms_show_points",
+                  "Show individual data points",     value = FALSE),
+                tags$hr(),
+                tags$p(class = "text-muted",
+                  style = "font-size:0.88rem; line-height:1.6;",
+                  icon("circle-info"),
+                  " Includes active and historical (archived) residents. ",
+                  "Box = 25th–75th percentile; line = median. ",
+                  "Dashed red line = Level 4 target."
+                )
+              )
+            ),
+
+            # Right — box plot
+            column(width = 9,
+              gmed::gmed_card(
+                title = "Milestone Score Distribution by Review Period",
+                uiOutput("ms_loading_indicator"),
+                plotly::plotlyOutput("ms_program_plot", height = "500px")
+              )
+            )
+          )
+        ),
+
+        # -------------------------------------------------------------------
+        # MILESTONE SUB-TAB 2: INDIVIDUAL RESIDENT
+        # -------------------------------------------------------------------
+        tabPanel(
+          title = "Individual Resident",
+          value = "ms_individual",
+          br(),
+
+          fluidRow(
+            # Left — controls
+            column(width = 3,
+              gmed::gmed_card(
+                title = "Select Resident",
+                selectizeInput("ms_resident", "Resident:",
+                  choices = NULL,
+                  options = list(
+                    placeholder = "Type to search...",
+                    maxOptions  = 300
+                  )
+                ),
+                selectInput("ms_ind_category", "Competency Category:",
+                  choices  = c("All", "PC", "MK", "SBP", "PBL", "PROF", "ICS"),
+                  selected = "All", width = "100%"),
+                tags$hr(),
+                tags$p(class = "text-muted",
+                  style = "font-size:0.88rem; line-height:1.6;",
+                  icon("circle-info"),
+                  " Each colored line = one subcompetency (e.g. PC1, PC2…). ",
+                  "Grey ribbon + dotted line = program 25th–75th %ile and median ",
+                  "for the selected category. Dashed red = Level 4 target."
+                )
+              )
+            ),
+
+            # Right — trajectory plot
+            column(width = 9,
+              gmed::gmed_card(
+                title = "Individual Subcompetency Trajectories vs. Program",
+                uiOutput("ms_ind_loading_indicator"),
+                plotly::plotlyOutput("ms_individual_plot", height = "520px")
               )
             )
           )
         )
       )
+    ),
+
+    # ===========================================================================
+    # MODE 4: FOLLOW-UP TRACKER
+    # ===========================================================================
+    tabPanel(
+      title = "Follow-up Tracker",
+      value = "followup_tracker",
+
+      br(),
+
+      tabsetPanel(
+        id = "tracker_subtabs",
+        type = "tabs",
+
+        # -----------------------------------------------------------------------
+        # TRACKER SUB-TAB 1: ACTION ITEMS
+        # -----------------------------------------------------------------------
+        tabPanel(
+          title = "Action Items",
+          value = "tracker_action_items",
+          br(),
+
+          # --- Value boxes (one per status type) ---
+          fluidRow(
+            column(width = 2,
+              div(class = "card text-white mb-3",
+                  style = "background-color: #6f42c1;",
+                div(class = "card-body p-3",
+                  div(class = "small text-white-50", "Interim Reviews"),
+                  div(class = "fs-4 fw-bold", textOutput("tracker_vb_interim", inline = TRUE))
+                )
+              )
+            ),
+            column(width = 2,
+              div(class = "card text-white mb-3",
+                  style = "background-color: #fd7e14;",
+                div(class = "card-body p-3",
+                  div(class = "small text-white-50", "Initiation"),
+                  div(class = "fs-4 fw-bold", textOutput("tracker_vb_initiation", inline = TRUE))
+                )
+              )
+            ),
+            column(width = 2,
+              div(class = "card text-white mb-3",
+                  style = "background-color: #0dcaf0;",
+                div(class = "card-body p-3",
+                  div(class = "small", style = "color: rgba(0,0,0,.5);", "Ongoing"),
+                  div(class = "fs-4 fw-bold text-dark", textOutput("tracker_vb_ongoing", inline = TRUE))
+                )
+              )
+            ),
+            column(width = 2,
+              div(class = "card text-white mb-3",
+                  style = "background-color: #198754;",
+                div(class = "card-body p-3",
+                  div(class = "small text-white-50", "Resolved"),
+                  div(class = "fs-4 fw-bold", textOutput("tracker_vb_resolved", inline = TRUE))
+                )
+              )
+            ),
+            column(width = 2,
+              div(class = "card text-white mb-3",
+                  style = "background-color: #dc3545;",
+                div(class = "card-body p-3",
+                  div(class = "small text-white-50", "Recurring"),
+                  div(class = "fs-4 fw-bold", textOutput("tracker_vb_recurring", inline = TRUE))
+                )
+              )
+            )
+          ),
+
+          # --- Filter buttons ---
+          gmed::gmed_card(
+            title = "Filters",
+            tags$div(
+              style = "margin: 5px 0;",
+              actionButton("tracker_filter_all",        "All",          class = "btn-sm btn-outline-secondary", style = "margin-right:5px;"),
+              actionButton("tracker_filter_interim",    "Interim",      class = "btn-sm btn-outline-secondary", style = "margin-right:5px;"),
+              actionButton("tracker_filter_concern",    "Has Concern",  class = "btn-sm btn-outline-secondary", style = "margin-right:5px;"),
+              actionButton("tracker_filter_initiation", "Initiation",   class = "btn-sm btn-outline-warning",   style = "margin-right:5px;"),
+              actionButton("tracker_filter_ongoing",    "Ongoing",      class = "btn-sm btn-outline-info",      style = "margin-right:5px;"),
+              actionButton("tracker_filter_resolved",   "Resolved",     class = "btn-sm btn-outline-success",   style = "margin-right:5px;"),
+              actionButton("tracker_filter_recurring",  "Recurring",    class = "btn-sm btn-outline-danger")
+            )
+          ),
+
+          br(),
+
+          # --- Main action items table ---
+          gmed::gmed_card(
+            title = "Action Items — click a row to update or add an issue",
+            tags$p(class = "text-muted", style = "font-size:0.95em;",
+                   "One row per resident. Click a row to open the update/add-issue dialog."),
+            DT::DTOutput("tracker_action_table")
+          )
+        ),
+
+        # -----------------------------------------------------------------------
+        # TRACKER SUB-TAB 2: CCC REVIEW
+        # -----------------------------------------------------------------------
+        tabPanel(
+          title = "CCC Review",
+          value = "tracker_ccc_review",
+          br(),
+
+          gmed::gmed_card(
+            title = "Filters",
+            fluidRow(
+              column(width = 3,
+                selectInput("tracker_rev_type_filter", "Type:",
+                            choices = c("All", "Scheduled", "Interim"),
+                            selected = "All", width = "100%")
+              ),
+              column(width = 3,
+                selectInput("tracker_session_filter", "Session:",
+                            choices = c("All"),   # populated server-side
+                            selected = "All", width = "100%")
+              )
+            )
+          ),
+
+          br(),
+
+          gmed::gmed_card(
+            title = "All CCC Review Records",
+            tags$p(class = "text-muted", style = "font-size:0.95em;",
+                   "Purple rows = Interim; yellow rows = Concern flagged."),
+            DT::DTOutput("tracker_ccc_review_table")
+          )
+        )
+      )
     )
+
   )
   )  # Close conditionalPanel for authenticated content
 )

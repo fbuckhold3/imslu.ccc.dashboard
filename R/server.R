@@ -467,11 +467,25 @@ create_server <- function(initial_data) {
       slice(1)
 
     tagList(
-      # Resident info header
-      gmed::gmed_resident_panel(
-        resident_name = resident_info$full_name,
-        level = resident_info$current_period,
-        coach = if("coach_name" %in% names(resident_info)) resident_info$coach_name else NULL
+      # Resident info header with Log Ad Hoc Meeting button
+      fluidRow(
+        column(width = 10,
+          gmed::gmed_resident_panel(
+            resident_name = resident_info$full_name,
+            level = resident_info$current_period,
+            coach = if ("coach_name" %in% names(resident_info)) resident_info$coach_name else NULL
+          )
+        ),
+        column(width = 2,
+          div(style = "padding-top: 15px; text-align: right;",
+            actionButton(
+              "log_adhoc_meeting",
+              "Log Ad Hoc Meeting",
+              icon  = icon("calendar-plus"),
+              class = "btn-warning"
+            )
+          )
+        )
       ),
       tags$hr(),
 
@@ -1019,7 +1033,7 @@ create_server <- function(initial_data) {
         "PC1", "PC2", "PC3", "PC4", "PC5", "PC6",
         "MK1", "MK2", "MK3",
         "SBP1", "SBP2", "SBP3",
-        "PBLI1", "PBLI2",
+        "PBL1", "PBL2",
         "PROF1", "PROF2", "PROF3", "PROF4",
         "ICS1", "ICS2", "ICS3"
       )
@@ -1427,7 +1441,7 @@ create_server <- function(initial_data) {
         paste0("rep_pc", 1:6),
         paste0("rep_mk", 1:3),
         paste0("rep_sbp", 1:3),
-        paste0("rep_pbli", 1:2),
+        paste0("rep_pbl", 1:2),
         paste0("rep_prof", 1:4),
         paste0("rep_ics", 1:3)
       )
@@ -1461,7 +1475,7 @@ create_server <- function(initial_data) {
         paste0("PC", 1:6),
         paste0("MK", 1:3),
         paste0("SBP", 1:3),
-        paste0("PBLI", 1:2),
+        paste0("PBL", 1:2),
         paste0("PROF", 1:4),
         paste0("ICS", 1:3)
       )
@@ -1470,7 +1484,7 @@ create_server <- function(initial_data) {
         paste0("rep_pc", 1:6),
         paste0("rep_mk", 1:3),
         paste0("rep_sbp", 1:3),
-        paste0("rep_pbli", 1:2),
+        paste0("rep_pbl", 1:2),
         paste0("rep_prof", 1:4),
         paste0("rep_ics", 1:3)
       )
@@ -1511,7 +1525,7 @@ create_server <- function(initial_data) {
 
         # Build minimal data frame for REDCap submission with only required fields
         # Get all milestone value fields from the original data
-        milestone_cols <- grep("^rep_(pc|mk|sbp|pbli|prof|ics)\\d+$",
+        milestone_cols <- grep("^rep_(pc|mk|sbp|pbl|prof|ics)\\d+$",
                               names(milestone_entry_data), value = TRUE)
 
         update_data <- data.frame(
@@ -1756,67 +1770,136 @@ create_server <- function(initial_data) {
       filter(record_id == input$adhoc_resident) %>%
       slice(1)
 
-    if (nrow(resident_info) == 0) {
-      return(p("Resident not found"))
-    }
+    if (nrow(resident_info) == 0) return(p("Resident not found"))
 
-    # Use resident's current period
     current_period <- resident_info$current_period
 
-    # Get milestones for current period
-    milestones <- get_resident_milestones(
-      app_data(),
-      input$adhoc_resident,
-      current_period
+    # ------------------------------------------------------------------
+    # Most-recent milestone data across ALL periods (not period-specific)
+    # ------------------------------------------------------------------
+    safe_recent <- function(form_name, period_field) {
+      d <- app_data()$all_forms[[form_name]]
+      if (is.null(d)) return(list(df = data.frame(), period = "—"))
+      d2 <- d %>%
+        filter(record_id == input$adhoc_resident,
+               redcap_repeat_instrument == form_name) %>%
+        arrange(desc(redcap_repeat_instance))
+      period_label <- if (nrow(d2) > 0 && period_field %in% names(d2))
+        as.character(d2[[period_field]][1]) else "—"
+      list(df = if (nrow(d2) > 0) d2[1, ] else data.frame(), period = period_label)
+    }
+
+    prog  <- safe_recent("milestone_entry",                "prog_mile_period")
+    self  <- safe_recent("milestone_selfevaluation_c33c",  "prog_mile_period_self")
+    acgme <- safe_recent("acgme_miles",                    "acgme_mile_period")
+
+    milestone_badge <- function(res, label) {
+      period_tag <- if (res$period != "—")
+        tags$small(class = "text-muted d-block mt-1", res$period)
+      else NULL
+      if (nrow(res$df) > 0) {
+        tagList(gmed::gmed_status_badge("Available", "complete"), period_tag)
+      } else {
+        tagList(gmed::gmed_status_badge("No data", "incomplete"), period_tag)
+      }
+    }
+
+    # ------------------------------------------------------------------
+    # Previous Reviews context (two-column summary)
+    # ------------------------------------------------------------------
+    ctx <- get_adhoc_review_context(app_data(), input$adhoc_resident)
+
+    info_row <- function(label, value) {
+      if (is.null(value) || nchar(trimws(value)) == 0) return(NULL)
+      tags$tr(
+        tags$td(tags$strong(label),
+                style = "width:28%; color:#6c757d; vertical-align:top;
+                         font-size:0.95rem; padding:8px 14px; white-space:nowrap;"),
+        tags$td(value,
+                style = "vertical-align:top; font-size:0.875rem; padding:7px 12px;
+                         line-height:1.5;")
+      )
+    }
+
+    concern_display <- if (ctx$ccc_concern == "Yes")
+      tags$span(class = "badge bg-danger", "Yes — Concern flagged")
+    else
+      tags$span(class = "text-muted", "No")
+
+    coach_label <- paste0("Coach Notes",
+      if (nchar(ctx$coach_period) > 0) paste0(" (", ctx$coach_period, ")") else "")
+    ccc_label   <- paste0("Last CCC Session",
+      if (nchar(ctx$ccc_session) > 0)  paste0(" (", ctx$ccc_session,  ")") else "")
+    concern_label <- paste0("CCC Concern",
+      if (nchar(ctx$ccc_session) > 0) paste0(" (", ctx$ccc_session, ")") else "")
+    last_concern_label <- if (nchar(ctx$last_concern_date) > 0)
+      paste0("Follow-up Notes (", ctx$last_concern_date, " — ", ctx$last_concern_type, ")")
+    else "Follow-up Notes"
+
+    context_table <- tags$table(
+      class = "table table-sm table-borderless",
+      style = "margin:0;",
+      tags$tbody(
+        info_row(coach_label,        ctx$coach_summary),
+        info_row("Coach ILP / Goals", ctx$coach_ilp),
+        info_row(ccc_label,          ctx$ccc_comments),
+        info_row("CCC ILP",           ctx$ccc_ilp),
+        if (ctx$ccc_concern == "Yes" || nchar(ctx$ccc_issues) > 0)
+          tags$tr(
+            tags$td(tags$strong(concern_label),
+                    style = "width:28%; color:#6c757d; vertical-align:top;
+                             font-size:0.95rem; padding:8px 14px;"),
+            tags$td(concern_display,
+                    style = "vertical-align:top; padding:7px 12px;")
+          ),
+        info_row("CCC Follow-up Issues", ctx$ccc_issues),
+        if (nchar(ctx$last_concern_notes) > 0 && ctx$last_concern_notes != ctx$ccc_issues)
+          info_row(last_concern_label, ctx$last_concern_notes)
+        else NULL
+      )
     )
+
+    has_any_context <- any(nchar(c(ctx$coach_summary, ctx$coach_ilp, ctx$ccc_comments,
+                                   ctx$ccc_ilp, ctx$ccc_issues, ctx$last_concern_notes)) > 0) ||
+                       ctx$ccc_concern == "Yes"
 
     tagList(
       # Resident info header
       gmed::gmed_resident_panel(
         resident_name = resident_info$full_name,
-        level = current_period,
-        coach = if("type" %in% names(resident_info)) paste0("Type: ", resident_info$type) else NULL
+        level         = current_period,
+        coach         = if ("type" %in% names(resident_info)) paste0("Type: ", resident_info$type) else NULL
       ),
       tags$hr(),
 
-      h4("Available Data", style = "margin-top: 20px;"),
+      h4("Most Recent Milestone Data", style = "margin-top: 20px;"),
+      tags$p(class = "text-muted", style = "font-size:0.85rem; margin-top:-8px;",
+             "Showing the latest available record regardless of review period."),
       fluidRow(
-        column(
-          width = 4,
-          gmed::gmed_card(
-            title = "Program Milestones",
-            if (nrow(milestones$program) > 0) {
-              gmed::gmed_status_badge("Complete", "complete")
-            } else {
-              gmed::gmed_status_badge("No data", "incomplete")
-            }
-          )
+        column(width = 4,
+          gmed::gmed_card(title = "Program Milestones",  milestone_badge(prog,  "Program"))
         ),
-        column(
-          width = 4,
-          gmed::gmed_card(
-            title = "Self-Evaluation",
-            if (nrow(milestones$self) > 0) {
-              gmed::gmed_status_badge("Complete", "complete")
-            } else {
-              gmed::gmed_status_badge("No data", "incomplete")
-            }
-          )
+        column(width = 4,
+          gmed::gmed_card(title = "Self-Evaluation",     milestone_badge(self,  "Self"))
         ),
-        column(
-          width = 4,
-          gmed::gmed_card(
-            title = "ACGME Milestones",
-            if (nrow(milestones$acgme) > 0) {
-              gmed::gmed_status_badge("Complete", "complete")
-            } else {
-              gmed::gmed_status_badge("No data", "incomplete")
-            }
-          )
+        column(width = 4,
+          gmed::gmed_card(title = "ACGME Milestones",    milestone_badge(acgme, "ACGME"))
         )
       ),
-      tags$hr(),
 
+      br(),
+      gmed::gmed_card(
+        title = "Previous Reviews",
+        tags$p(class = "text-muted", style = "font-size:0.8rem; margin-bottom:10px;",
+               "Coach and CCC notes from the most recent relevant reviews."),
+        if (has_any_context)
+          context_table
+        else
+          tags$p(class = "text-muted", style = "font-style:italic;",
+                 icon("info-circle"), " No prior coach notes or CCC review data found for this resident.")
+      ),
+
+      tags$hr(),
       h4("Ad Hoc Review Form", style = "margin-top: 30px;"),
 
       # Action Data Table for Ad Hoc
@@ -2190,6 +2273,926 @@ create_server <- function(initial_data) {
   # Admin data entry panel
   output$admin_data_entry_panel <- renderUI({
     p(em("Admin data entry interface will be added here"))
+  })
+
+  # ===========================================================================
+  # FEATURE 2: LOG AD HOC MEETING
+  # ===========================================================================
+
+  observeEvent(input$log_adhoc_meeting, {
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    showModal(modalDialog(
+      title = paste("Log Ad Hoc Meeting —", resident_info$full_name),
+      size  = "l",
+      easyClose = TRUE,
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("submit_adhoc_meeting", "Submit", class = "btn-primary",
+                     icon = icon("save"))
+      ),
+
+      dateInput("adhoc_meet_date", "Meeting Date:", value = Sys.Date(), width = "100%"),
+
+      textAreaInput("adhoc_meet_summary", "Meeting Summary (required):",
+                    rows = 4, width = "100%",
+                    placeholder = "Summarize the meeting discussion..."),
+
+      textAreaInput("adhoc_meet_wellness", "Wellness Notes (optional):",
+                    rows = 3, width = "100%", placeholder = ""),
+
+      textAreaInput("adhoc_meet_career", "Career Notes (optional):",
+                    rows = 3, width = "100%", placeholder = ""),
+
+      textAreaInput("adhoc_meet_milestone", "Milestone / Goals Notes (optional):",
+                    rows = 3, width = "100%", placeholder = "")
+    ))
+  })
+
+  observeEvent(input$submit_adhoc_meeting, {
+    rid <- selected_resident_id()
+    req(rid)
+
+    # Validate required summary field
+    if (is.null(input$adhoc_meet_summary) ||
+        nchar(trimws(input$adhoc_meet_summary)) == 0) {
+      showNotification("Meeting summary is required.", type = "warning", duration = 5)
+      return()
+    }
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    result <- submit_adhoc_meeting_notes(
+      redcap_url      = REDCAP_CONFIG$url,
+      redcap_token    = REDCAP_CONFIG$rdm_token,
+      record_id       = rid,
+      meeting_date    = input$adhoc_meet_date,
+      meeting_notes   = input$adhoc_meet_summary,
+      wellness_notes  = input$adhoc_meet_wellness,
+      career_notes    = input$adhoc_meet_career,
+      milestone_notes = input$adhoc_meet_milestone
+    )
+
+    if (result$success) {
+      removeModal()
+      showNotification(
+        paste("Ad hoc meeting logged for", resident_info$full_name),
+        type = "message", duration = 4
+      )
+      tryCatch({
+        app_data(load_ccc_data())
+      }, error = function(e) {
+        showNotification("Meeting saved; could not refresh data automatically.",
+                         type = "warning", duration = 5)
+      })
+    } else {
+      showNotification(paste("Error saving meeting:", result$message),
+                       type = "error", duration = 10)
+    }
+  })
+
+  # ===========================================================================
+  # FEATURE 1: FOLLOW-UP TRACKER — reactive state
+  # ===========================================================================
+
+  tracker_filter        <- reactiveVal("all")   # "all","interim","concern","initiation","ongoing","resolved","recurring"
+  tracker_display_table <- reactiveVal(NULL)     # current (filtered) summary data frame
+  tracker_selected_rid  <- reactiveVal(NULL)     # record_id of row clicked in action table
+
+  # Filter button observers
+  observeEvent(input$tracker_filter_all,        { tracker_filter("all") })
+  observeEvent(input$tracker_filter_interim,    { tracker_filter("interim") })
+  observeEvent(input$tracker_filter_concern,    { tracker_filter("concern") })
+  observeEvent(input$tracker_filter_initiation, { tracker_filter("initiation") })
+  observeEvent(input$tracker_filter_ongoing,    { tracker_filter("ongoing") })
+  observeEvent(input$tracker_filter_resolved,   { tracker_filter("resolved") })
+  observeEvent(input$tracker_filter_recurring,  { tracker_filter("recurring") })
+
+  # ===========================================================================
+  # FOLLOW-UP TRACKER — value boxes
+  # ===========================================================================
+
+  tracker_summary_data <- reactive({
+    get_tracker_summary(app_data())
+  })
+
+  output$tracker_vb_interim    <- renderText({
+    s <- tracker_summary_data()
+    if (is.null(s) || nrow(s) == 0) return("0")
+    as.character(sum(s$is_interim, na.rm = TRUE))
+  })
+  output$tracker_vb_initiation <- renderText({
+    s <- tracker_summary_data()
+    if (is.null(s) || nrow(s) == 0) return("0")
+    as.character(sum(s$is_initiation, na.rm = TRUE))
+  })
+  output$tracker_vb_ongoing    <- renderText({
+    s <- tracker_summary_data()
+    if (is.null(s) || nrow(s) == 0) return("0")
+    as.character(sum(s$is_ongoing, na.rm = TRUE))
+  })
+  output$tracker_vb_resolved   <- renderText({
+    s <- tracker_summary_data()
+    if (is.null(s) || nrow(s) == 0) return("0")
+    as.character(sum(s$is_resolved, na.rm = TRUE))
+  })
+  output$tracker_vb_recurring  <- renderText({
+    s <- tracker_summary_data()
+    if (is.null(s) || nrow(s) == 0) return("0")
+    as.character(sum(s$is_recurring, na.rm = TRUE))
+  })
+
+  # ===========================================================================
+  # FOLLOW-UP TRACKER — Action Items table
+  # ===========================================================================
+
+  output$tracker_action_table <- DT::renderDT({
+    summary_df <- tracker_summary_data()
+    active_filter <- tracker_filter()
+
+    if (is.null(summary_df) || nrow(summary_df) == 0) {
+      empty_df <- data.frame(
+        Resident = character(0), Level = character(0), Coach = character(0),
+        Type = character(0), Concern = character(0), `Last Review` = character(0),
+        `Current Status` = character(0), `All Actions` = character(0),
+        `Person Responsible` = character(0), `Follow-up Notes` = character(0),
+        check.names = FALSE
+      )
+      tracker_display_table(empty_df)
+      return(DT::datatable(empty_df, rownames = FALSE,
+                            options = list(dom = "t", pageLength = 25)))
+    }
+
+    # Apply filter
+    filtered <- switch(active_filter,
+      "interim"    = summary_df[summary_df$is_interim,    ],
+      "concern"    = summary_df[summary_df$is_concern,    ],
+      "initiation" = summary_df[summary_df$is_initiation, ],
+      "ongoing"    = summary_df[summary_df$is_ongoing,    ],
+      "resolved"   = summary_df[summary_df$is_resolved,   ],
+      "recurring"  = summary_df[summary_df$is_recurring,  ],
+      summary_df   # "all"
+    )
+
+    if (is.null(filtered) || nrow(filtered) == 0) {
+      filtered <- summary_df[FALSE, ]
+    }
+
+    tracker_display_table(filtered)
+
+    display_cols <- c("Resident", "Level", "Coach", "Type", "Concern",
+                      "Last Review", "Current Status", "All Actions",
+                      "Person Responsible", "Follow-up Notes")
+
+    DT::datatable(
+      filtered[, display_cols, drop = FALSE],
+      selection = "single",
+      rownames  = FALSE,
+      options   = list(
+        pageLength = 25,
+        dom        = "ft",
+        scrollX    = TRUE,
+        columnDefs = list(
+          list(width = "150px", targets = 0),           # Resident
+          list(width = "110px", targets = c(1, 2)),     # Level, Coach
+          list(width = "85px",  targets = c(3, 4, 5)),  # Type, Concern, Last Review
+          list(width = "130px", targets = c(6, 7, 8)),  # Status, Actions, Person
+          list(width = "200px", targets = 9)            # Notes
+        )
+      )
+    ) %>%
+      DT::formatStyle("Type",
+        backgroundColor = DT::styleEqual(c("Interim", "Scheduled"),
+                                         c("#ede7f6", "transparent")),
+        color           = DT::styleEqual(c("Interim", "Scheduled"),
+                                         c("#4a1d8e", "inherit"))
+      ) %>%
+      DT::formatStyle("Concern",
+        color      = DT::styleEqual(c("Yes", "—"), c("#dc3545", "#adb5bd")),
+        fontWeight = DT::styleEqual(c("Yes", "—"), c("bold", "normal"))
+      )
+  })
+
+  # Row click → open update/add-issue modal
+  observeEvent(input$tracker_action_table_rows_selected, {
+    idx <- input$tracker_action_table_rows_selected
+    tbl <- tracker_display_table()
+    if (is.null(tbl) || is.null(idx) || nrow(tbl) < idx) return()
+
+    rid <- tbl$record_id[idx]
+    tracker_selected_rid(rid)
+
+    resident_name <- tbl$Resident[idx]
+
+    # Get all qualifying instances for this resident
+    ccc_all <- app_data()$all_forms$ccc_review
+    if (is.null(ccc_all)) {
+      showNotification("No CCC review data available.", type = "warning"); return()
+    }
+
+    res_reviews <- ccc_all %>%
+      filter(record_id == rid, redcap_repeat_instrument == "ccc_review")
+
+    action_cols_p <- intersect(paste0("ccc_action___", 1:8), names(res_reviews))
+    has_action <- if (length(action_cols_p) > 0) {
+      apply(res_reviews[, action_cols_p, drop = FALSE], 1,
+            function(r) any(!is.na(r) & r == "1"))
+    } else rep(FALSE, nrow(res_reviews))
+    has_int <- !is.na(res_reviews$ccc_rev_type) & res_reviews$ccc_rev_type == "2"
+    has_con <- "ccc_concern" %in% names(res_reviews) &
+               !is.na(res_reviews$ccc_concern) & res_reviews$ccc_concern == "1"
+
+    qualifying_reviews <- res_reviews[has_int | has_con | has_action, ]
+
+    if (nrow(qualifying_reviews) == 0) {
+      showNotification("No qualifying review records found for this resident.",
+                       type = "info"); return()
+    }
+
+    # Build instance choice labels
+    instance_choices <- setNames(
+      as.character(qualifying_reviews$redcap_repeat_instance),
+      paste0(
+        "Instance ", qualifying_reviews$redcap_repeat_instance,
+        " — ",
+        ifelse(!is.na(qualifying_reviews$ccc_date) & qualifying_reviews$ccc_date != "",
+               as.character(qualifying_reviews$ccc_date), "no date"),
+        " (",
+        ifelse(!is.na(qualifying_reviews$ccc_rev_type) & qualifying_reviews$ccc_rev_type == "2",
+               "Interim", "Scheduled"),
+        ")"
+      )
+    )
+
+    # Pre-populate status from the first (most recent) instance
+    default_inst_row <- qualifying_reviews[
+      order(qualifying_reviews$ccc_date, decreasing = TRUE, na.last = TRUE), ][1, ]
+    default_instance <- as.character(default_inst_row$redcap_repeat_instance[1])
+
+    default_status <- c()
+    for (n in 1:4) {
+      sc <- paste0("ccc_action_status___", n)
+      if (sc %in% names(default_inst_row) &&
+          !is.na(default_inst_row[[sc]][1]) && default_inst_row[[sc]][1] == "1") {
+        default_status <- c(default_status, as.character(n))
+      }
+    }
+
+    default_notes <- if ("ccc_issues_follow_up" %in% names(default_inst_row))
+      as.character(default_inst_row$ccc_issues_follow_up[1]) else ""
+    if (is.na(default_notes)) default_notes <- ""
+
+    # Choices for "Add New Issue"
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency", for_ui = TRUE)
+    action_choices_ui  <- get_field_choices(app_data()$data_dict, "ccc_action",     for_ui = TRUE)
+    status_choices_ui  <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
+
+    if (length(competency_choices) == 0)
+      competency_choices <- c("PC1"="1","PC2"="2","PC3"="3","PC4"="4",
+                               "PC5"="5","PC6"="6","MK1"="7")
+    if (length(action_choices_ui) == 0)
+      action_choices_ui <- setNames(as.character(1:8), CCC_ACTION_LABELS)
+    if (length(status_choices_ui) == 0)
+      status_choices_ui <- setNames(as.character(1:4), CCC_STATUS_LABELS)
+
+    showModal(modalDialog(
+      title     = paste("Action Items —", resident_name),
+      size      = "l",
+      easyClose = TRUE,
+      footer    = modalButton("Close"),
+
+      tabsetPanel(
+        id = "tracker_modal_tabs",
+
+        # Tab 1: Add Status Update (creates a new interim instance)
+        tabPanel("Add Status Update",
+          br(),
+          tags$p(class = "text-muted", style = "font-size:0.875rem;",
+            icon("info-circle"), " This will create a new interim record capturing the updated status.",
+            if (nchar(default_notes) > 0)
+              tags$span(paste0(" Last note: \u201c", substr(default_notes, 1, 80),
+                               if (nchar(default_notes) > 80) "\u2026" else "", "\u201d"))
+          ),
+          checkboxGroupInput("tracker_update_status",
+                             "New Status (check all that apply):",
+                             choices  = c("Initiation"="1","Ongoing"="2",
+                                          "Resolved"="3","Recurring"="4"),
+                             selected = default_status, inline = TRUE),
+          textAreaInput("tracker_update_notes", "Follow-up Notes:",
+                        value = "", rows = 4, width = "100%",
+                        placeholder = "Describe the current status and any follow-up actions..."),
+          textInput("tracker_update_person_resp", "Person Responsible:", width = "100%"),
+          br(),
+          actionButton("tracker_save_update", "Add Status Update",
+                       class = "btn-primary", icon = icon("plus-circle"))
+        ),
+
+        # Tab 2: Add New Issue
+        tabPanel("Add New Issue",
+          br(),
+          textAreaInput("tracker_new_description", "Issue Description:",
+                        rows = 3, width = "100%",
+                        placeholder = "Describe the new issue..."),
+          checkboxGroupInput("tracker_new_competency", "Competency Area(s):",
+                             choices = competency_choices),
+          checkboxGroupInput("tracker_new_actions", "Action(s) Required:",
+                             choices = action_choices_ui),
+          checkboxGroupInput("tracker_new_status", "Initial Status:",
+                             choices = status_choices_ui, inline = TRUE),
+          textInput("tracker_new_person_resp", "Person Responsible:", width = "100%"),
+          textAreaInput("tracker_new_notes", "Follow-up Notes:",
+                        rows = 3, width = "100%"),
+          br(),
+          actionButton("tracker_add_issue", "Add Issue",
+                       class = "btn-success", icon = icon("plus-circle"))
+        )
+      )
+    ))
+  })
+
+  # Save status update — creates a NEW ccc_review interim instance
+  observeEvent(input$tracker_save_update, {
+    rid <- tracker_selected_rid()
+    req(rid)
+
+    notes_text <- if (!is.null(input$tracker_update_notes))
+      trimws(input$tracker_update_notes) else ""
+
+    description <- if (nchar(notes_text) > 0) notes_text else "Status update"
+
+    result <- submit_new_tracker_issue(
+      redcap_url   = REDCAP_CONFIG$url,
+      redcap_token = REDCAP_CONFIG$rdm_token,
+      record_id    = rid,
+      description  = description,
+      status       = input$tracker_update_status,
+      person_resp  = input$tracker_update_person_resp,
+      notes        = notes_text
+    )
+
+    if (result$success) {
+      removeModal()
+      showNotification("Status update recorded as new entry.", type = "message", duration = 4)
+      tryCatch({
+        app_data(load_ccc_data())
+      }, error = function(e) {
+        showNotification("Saved; could not auto-refresh data.",
+                         type = "warning", duration = 5)
+      })
+    } else {
+      showNotification(paste("Error saving status update:", result$message),
+                       type = "error", duration = 10)
+    }
+  })
+
+  # Add new issue
+  observeEvent(input$tracker_add_issue, {
+    rid <- tracker_selected_rid()
+    req(rid)
+
+    if (is.null(input$tracker_new_description) ||
+        nchar(trimws(input$tracker_new_description)) == 0) {
+      showNotification("Issue description is required.", type = "warning", duration = 5)
+      return()
+    }
+
+    result <- submit_new_tracker_issue(
+      redcap_url  = REDCAP_CONFIG$url,
+      redcap_token = REDCAP_CONFIG$rdm_token,
+      record_id   = rid,
+      description = input$tracker_new_description,
+      actions     = input$tracker_new_actions,
+      status      = input$tracker_new_status,
+      competency  = input$tracker_new_competency,
+      person_resp = input$tracker_new_person_resp,
+      notes       = input$tracker_new_notes
+    )
+
+    if (result$success) {
+      removeModal()
+      showNotification("New issue added successfully.", type = "message", duration = 4)
+      tryCatch({
+        app_data(load_ccc_data())
+      }, error = function(e) {
+        showNotification("Issue saved; could not auto-refresh data.",
+                         type = "warning", duration = 5)
+      })
+    } else {
+      showNotification(paste("Error adding issue:", result$message),
+                       type = "error", duration = 10)
+    }
+  })
+
+  # ===========================================================================
+  # FOLLOW-UP TRACKER — CCC Review full table (Tab 2)
+  # ===========================================================================
+
+  # Populate session filter choices from loaded data
+  observe({
+    ccc_all <- app_data()$all_forms$ccc_review
+    if (is.null(ccc_all)) return()
+
+    sessions <- unique(ccc_all$ccc_session)
+    sessions <- sessions[!is.na(sessions) & nchar(trimws(sessions)) > 0]
+    sessions <- sort(sessions)
+
+    updateSelectInput(session, "tracker_session_filter",
+                      choices  = c("All", sessions),
+                      selected = "All")
+  })
+
+  output$tracker_ccc_review_table <- DT::renderDT({
+    all_reviews <- get_ccc_review_all(app_data())
+
+    if (is.null(all_reviews) || nrow(all_reviews) == 0) {
+      return(DT::datatable(
+        data.frame(Resident = character(0), Session = character(0),
+                   Date = character(0), Type = character(0),
+                   Concern = character(0), Actions = character(0),
+                   Status = character(0), `Follow-up Notes` = character(0),
+                   check.names = FALSE),
+        rownames = FALSE,
+        options  = list(dom = "t", pageLength = 50)
+      ))
+    }
+
+    # Apply type filter
+    type_filter <- input$tracker_rev_type_filter
+    if (!is.null(type_filter) && type_filter != "All") {
+      all_reviews <- all_reviews[all_reviews$Type == type_filter, ]
+    }
+
+    # Apply session filter
+    sess_filter <- input$tracker_session_filter
+    if (!is.null(sess_filter) && sess_filter != "All") {
+      all_reviews <- all_reviews[all_reviews$Session == sess_filter, ]
+    }
+
+    display_cols <- c("Resident", "Session", "Date", "Type", "Concern",
+                      "Actions", "Status", "Follow-up Notes")
+
+    DT::datatable(
+      all_reviews[, display_cols, drop = FALSE],
+      selection = "none",
+      rownames  = FALSE,
+      escape    = TRUE,
+      options   = list(
+        pageLength = 50,
+        dom        = "ftp",
+        scrollX    = TRUE,
+        order      = list(list(2, "desc")),  # sort by Date desc
+        rowCallback = DT::JS(
+          "function(row, data, index) {",
+          "  // data[3] = Type column (0-indexed)",
+          "  if (data[3] === 'Interim') {",
+          "    $(row).css({'background-color':'#ede7f6','color':'#4a1d8e'});",
+          "  }",
+          "  // data[4] = Concern column",
+          "  if (data[4] === 'Yes' && data[3] !== 'Interim') {",
+          "    $(row).css({'background-color':'#fff3cd'});",
+          "  }",
+          "}"
+        )
+      )
+    ) %>%
+      DT::formatStyle("Status",
+        backgroundColor = DT::styleEqual(
+          c("Initiation", "Ongoing", "Resolved", "Recurring"),
+          c("#fff3cd",    "#cff4fc",  "#d1e7dd",  "#f8d7da")
+        )
+      ) %>%
+      DT::formatStyle("Concern",
+        color = DT::styleEqual(c("Yes", "No"), c("#dc3545", "inherit")),
+        fontWeight = DT::styleEqual(c("Yes", "No"), c("bold", "normal"))
+      )
+  })
+
+  # ===========================================================================
+  # MODE 3: MILESTONE ANALYSIS
+  # ===========================================================================
+
+  # -- Internal helper: return an empty plotly with a centred message ---------
+  ms_empty_plot <- function(msg = "No data available") {
+    plotly::plot_ly() %>%
+      plotly::layout(
+        xaxis      = list(visible = FALSE),
+        yaxis      = list(visible = FALSE),
+        annotations = list(list(
+          text      = msg,
+          xref      = "paper", yref = "paper",
+          x = 0.5,  y = 0.5,
+          showarrow = FALSE,
+          font      = list(size = 15, color = "#6b7280")
+        )),
+        paper_bgcolor = "#ffffff",
+        plot_bgcolor  = "#fafafa"
+      )
+  }
+
+  # Reactive vals ---------------------------------------------------------------
+  milestone_full_data <- reactiveVal(NULL)
+  milestone_loading   <- reactiveVal(FALSE)
+
+  # Load full data (archived + active) the first time the tab is visited --------
+  observeEvent(input$main_mode, {
+    req(input$main_mode == "milestone_analysis")
+    if (!is.null(milestone_full_data())) return()   # already loaded
+
+    milestone_loading(TRUE)
+    tryCatch({
+      full <- load_ccc_data(include_archived = TRUE)
+      milestone_full_data(full)
+    }, error = function(e) {
+      showNotification(
+        paste("Error loading milestone data:", e$message),
+        type = "error", duration = 10
+      )
+    })
+    milestone_loading(FALSE)
+  }, ignoreInit = TRUE)
+
+  # Long-format milestone data --------------------------------------------------
+  milestone_long <- reactive({
+    req(!is.null(milestone_full_data()))
+    get_milestone_longitudinal_data(milestone_full_data())
+  })
+
+  # Loading indicators (shared between sub-tabs) --------------------------------
+  output$ms_loading_indicator <- renderUI({
+    if (isTRUE(milestone_loading())) {
+      div(class = "alert alert-info mb-3",
+          icon("circle-notch", class = "fa-spin"),
+          " Loading historical milestone data (including archived residents)...")
+    } else if (is.null(milestone_full_data())) {
+      div(class = "alert alert-secondary mb-3",
+          icon("hourglass-half"),
+          " Milestone data will load when you visit this tab for the first time.")
+    }
+  })
+
+  output$ms_ind_loading_indicator <- renderUI({
+    if (isTRUE(milestone_loading())) {
+      div(class = "alert alert-info mb-3",
+          icon("circle-notch", class = "fa-spin"),
+          " Loading historical milestone data (including archived residents)...")
+    } else if (is.null(milestone_full_data())) {
+      div(class = "alert alert-secondary mb-3",
+          icon("hourglass-half"),
+          " Milestone data will load when you visit this tab.")
+    }
+  })
+
+  # Populate individual-resident selector (all residents inc. archived) ---------
+  observe({
+    req(!is.null(milestone_full_data()))
+    all_res <- milestone_full_data()$residents
+    req(nrow(all_res) > 0, "full_name" %in% names(all_res))
+    choices <- setNames(as.character(all_res$record_id), all_res$full_name)
+    choices <- choices[order(names(choices))]
+    updateSelectizeInput(session, "ms_resident", choices = choices, server = TRUE)
+  })
+
+  # Update "Specific Subcompetency" dropdown when category changes --------------
+  observe({
+    req(!is.null(milestone_long()))
+    ld <- milestone_long()
+    req(nrow(ld) > 0)
+
+    cat_filter <- input$ms_category
+    if (!is.null(cat_filter) && cat_filter != "All") {
+      milestones <- sort(unique(ld$milestone[ld$category == cat_filter]))
+    } else {
+      milestones <- sort(unique(ld$milestone))
+    }
+
+    # Map milestone codes to full names for the dropdown
+    mile_choices <- setNames(milestones, sapply(milestones, get_competency_full_name))
+
+    updateSelectInput(session, "ms_specific",
+      choices  = c("All (Average)" = "__all__", mile_choices),
+      selected = "__all__"
+    )
+  })
+
+  # ===========================================================================
+  # MILESTONE ANALYSIS — Program Trends box plot
+  # ===========================================================================
+
+  output$ms_program_plot <- plotly::renderPlotly({
+    req(!is.null(milestone_long()))
+    ld <- milestone_long()
+    if (nrow(ld) == 0) return(ms_empty_plot("No milestone data found."))
+
+    cat_filter   <- input$ms_category
+    spec_filter  <- input$ms_specific
+    show_cohorts <- isTRUE(input$ms_show_cohorts)
+    show_points  <- isTRUE(input$ms_show_points)
+
+    period_order <- c(
+      "Mid Intern", "End Intern",
+      "Mid PGY2",   "End PGY2",
+      "Mid PGY3",   "Graduating"
+    )
+
+    # -- Filter by category
+    if (!is.null(cat_filter) && cat_filter != "All") {
+      ld <- ld %>% filter(category == cat_filter)
+    }
+    if (nrow(ld) == 0) return(ms_empty_plot("No data for the selected category."))
+
+    # -- Aggregate or single subcompetency
+    use_specific <- !is.null(spec_filter) &&
+                    spec_filter != "__all__"  &&
+                    spec_filter != "All (Average)"
+
+    if (use_specific) {
+      plot_ld <- ld %>% filter(milestone == spec_filter)
+    } else {
+      # Average across all selected subcompetencies per resident per period
+      plot_ld <- ld %>%
+        group_by(record_id, full_name, grad_yr, prog_mile_period, period_num) %>%
+        summarise(score = mean(score, na.rm = TRUE), .groups = "drop")
+    }
+
+    if (nrow(plot_ld) == 0) return(ms_empty_plot("No data for the selected subcompetency."))
+
+    # Drop rows with missing period (keeps factor ordering clean)
+    plot_ld <- plot_ld %>% filter(!is.na(prog_mile_period))
+
+    # Build box point style
+    box_pts <- if (show_points) "all" else "outliers"
+
+    plot_title <- if (use_specific) {
+      paste0("Milestone: ", get_competency_full_name(spec_filter))
+    } else if (!is.null(cat_filter) && cat_filter != "All") {
+      paste0("Competency Category: ", cat_filter, " (average across subcompetencies)")
+    } else {
+      "All Competencies (average per resident)"
+    }
+
+    # -- Build plotly
+    if (show_cohorts && "grad_yr" %in% names(plot_ld) &&
+        any(!is.na(plot_ld$grad_yr))) {
+
+      plot_ld_c <- plot_ld %>% filter(!is.na(grad_yr))
+
+      p <- plotly::plot_ly(
+        data       = plot_ld_c,
+        x          = ~prog_mile_period,
+        y          = ~score,
+        color      = ~as.factor(grad_yr),
+        type       = "box",
+        boxpoints  = box_pts,
+        jitter     = 0.35,
+        pointpos   = 0
+      ) %>%
+        plotly::layout(boxmode = "group")
+
+    } else {
+      p <- plotly::plot_ly(
+        data      = plot_ld,
+        x         = ~prog_mile_period,
+        y         = ~score,
+        type      = "box",
+        boxpoints = box_pts,
+        jitter    = 0.35,
+        pointpos  = 0,
+        marker    = list(color = "rgba(0,48,135,0.55)", size = 5),
+        line      = list(color = "#003087"),
+        fillcolor = "rgba(0,48,135,0.15)",
+        name      = "All residents"
+      )
+    }
+
+    # Level-4 target line
+    p <- p %>%
+      plotly::add_lines(
+        x       = period_order,
+        y       = rep(4, length(period_order)),
+        line    = list(color = "#dc3545", width = 2, dash = "dash"),
+        name    = "Level 4 Target",
+        inherit = FALSE,
+        showlegend = TRUE
+      ) %>%
+      plotly::layout(
+        title  = list(text = plot_title, font = list(size = 15)),
+        xaxis  = list(
+          title         = "Review Period",
+          categoryorder = "array",
+          categoryarray = period_order
+        ),
+        yaxis  = list(
+          title = "Milestone Score (1–9)",
+          range = c(0.5, 9.5),
+          dtick = 1
+        ),
+        legend = list(
+          orientation = "h",
+          yanchor     = "bottom",
+          y           = 1.02,
+          xanchor     = "right",
+          x           = 1
+        ),
+        plot_bgcolor  = "#fafafa",
+        paper_bgcolor = "#ffffff",
+        font          = list(family = "Inter, sans-serif", size = 15),
+        margin        = list(l = 60, r = 20, t = 50, b = 80)
+      )
+
+    p
+  })
+
+  # ===========================================================================
+  # MILESTONE ANALYSIS — Individual Resident trajectory
+  # ===========================================================================
+
+  output$ms_individual_plot <- plotly::renderPlotly({
+    req(input$ms_resident, !is.null(milestone_long()))
+    ld <- milestone_long()
+    if (nrow(ld) == 0) return(ms_empty_plot("No milestone data found."))
+
+    rid        <- input$ms_resident
+    cat_filter <- input$ms_ind_category
+
+    period_order <- c(
+      "Mid Intern", "End Intern",
+      "Mid PGY2",   "End PGY2",
+      "Mid PGY3",   "Graduating"
+    )
+
+    # -- Filter by category (keeps individual subcompetency lines manageable)
+    ld_cat <- if (!is.null(cat_filter) && cat_filter != "All") {
+      ld %>% filter(category == cat_filter)
+    } else {
+      ld
+    }
+    if (nrow(ld_cat) == 0) return(ms_empty_plot("No data for the selected category."))
+
+    # -- Resident display name
+    res_name <- tryCatch({
+      r <- milestone_full_data()$residents %>%
+        filter(as.character(record_id) == as.character(rid))
+      if (nrow(r) > 0) as.character(r$full_name[1]) else as.character(rid)
+    }, error = function(e) as.character(rid))
+
+    # -- Individual scores per subcompetency per period ----------------------
+    ind_by_ms <- ld_cat %>%
+      filter(as.character(record_id) == as.character(rid),
+             !is.na(prog_mile_period)) %>%
+      arrange(period_num)
+
+    if (nrow(ind_by_ms) == 0) {
+      return(ms_empty_plot(paste0("No milestone data found for ", res_name, ".")))
+    }
+
+    # -- Program IQR ribbon (average per-person per period, selected category)
+    prog_per_person <- ld_cat %>%
+      filter(!is.na(prog_mile_period)) %>%
+      group_by(record_id, prog_mile_period, period_num) %>%
+      summarise(avg = mean(score, na.rm = TRUE), .groups = "drop")
+
+    prog_summ <- prog_per_person %>%
+      group_by(prog_mile_period, period_num) %>%
+      summarise(
+        med = median(avg, na.rm = TRUE),
+        q25 = quantile(avg, 0.25, na.rm = TRUE),
+        q75 = quantile(avg, 0.75, na.rm = TRUE),
+        n   = n(),
+        .groups = "drop"
+      ) %>%
+      arrange(period_num) %>%
+      filter(!is.na(prog_mile_period))
+
+    # -- Color palette (one color per subcompetency) -------------------------
+    ms_palette <- c(
+      "PC1"   = "#003087", "PC2"   = "#1a5fbf", "PC3"   = "#3678d8",
+      "PC4"   = "#5491e8", "PC5"   = "#72abf5", "PC6"   = "#90c5ff",
+      "MK1"   = "#155d27", "MK2"   = "#1e8136", "MK3"   = "#28a745",
+      "SBP1"  = "#7d3800", "SBP2"  = "#b55200", "SBP3"  = "#fd7e14",
+      "PBL1"  = "#4a0e8f", "PBL2"  = "#7c3aed",
+      "PROF1" = "#7c0012", "PROF2" = "#a80018", "PROF3" = "#cc001e",
+      "PROF4" = "#dc3545",
+      "ICS1"  = "#005e6d", "ICS2"  = "#00859a", "ICS3"  = "#0dcaf0"
+    )
+
+    milestones_present <- sort(unique(ind_by_ms$milestone))
+
+    # -- Build plot ----------------------------------------------------------
+    p <- plotly::plot_ly()
+
+    # Program IQR ribbon + median (uses correct ymin/ymax API)
+    if (nrow(prog_summ) > 0) {
+      x_prog <- as.character(prog_summ$prog_mile_period)
+
+      p <- p %>%
+        plotly::add_ribbons(
+          x         = x_prog,
+          ymin      = prog_summ$q25,
+          ymax      = prog_summ$q75,
+          fillcolor = "rgba(107,114,128,0.13)",
+          line      = list(color = "transparent"),
+          name      = paste0("Program IQR",
+                             if (!is.null(cat_filter) && cat_filter != "All")
+                               paste0(" (", cat_filter, " avg)") else ""),
+          showlegend = TRUE,
+          hoverinfo  = "skip"
+        ) %>%
+        plotly::add_trace(
+          x         = x_prog,
+          y         = prog_summ$med,
+          type      = "scatter",
+          mode      = "lines",
+          line      = list(color = "#9ca3af", width = 1.5, dash = "dot"),
+          name      = "Program Median",
+          text      = paste0("Period: ", x_prog,
+                             "<br>Program Median: ", round(prog_summ$med, 2),
+                             "<br>N = ", prog_summ$n),
+          hoverinfo = "text",
+          showlegend = TRUE
+        )
+    }
+
+    # One line+markers per subcompetency (individual scores)
+    for (ms in milestones_present) {
+      ms_data <- ind_by_ms %>%
+        filter(milestone == ms) %>%
+        arrange(period_num)
+      if (nrow(ms_data) == 0) next
+
+      col   <- if (ms %in% names(ms_palette)) ms_palette[[ms]] else "#444444"
+      x_ms  <- as.character(ms_data$prog_mile_period)
+      label <- get_competency_full_name(ms)
+
+      p <- p %>%
+        plotly::add_trace(
+          x         = x_ms,
+          y         = ms_data$score,
+          type      = "scatter",
+          mode      = "lines+markers",
+          name      = label,
+          line      = list(color = col, width = 2.5),
+          marker    = list(color = col, size = 8,
+                           line = list(color = "#ffffff", width = 1.5)),
+          text      = paste0(label,
+                             "<br>Period: ", x_ms,
+                             "<br>Score: ", ms_data$score),
+          hoverinfo = "text"
+        )
+    }
+
+    # Level-4 reference line
+    if (nrow(prog_summ) > 0) {
+      x_prog <- as.character(prog_summ$prog_mile_period)
+      p <- p %>%
+        plotly::add_trace(
+          x         = x_prog,
+          y         = rep(4, length(x_prog)),
+          type      = "scatter",
+          mode      = "lines",
+          line      = list(color = "#dc3545", width = 1.5, dash = "dash"),
+          name      = "Level 4 Target",
+          showlegend = TRUE,
+          hoverinfo  = "skip"
+        )
+    }
+
+    cat_label <- if (!is.null(cat_filter) && cat_filter != "All")
+      paste0(" (", cat_filter, ")") else ""
+
+    p %>% plotly::layout(
+      title  = list(
+        text = paste0(res_name, " — Milestone Trajectory", cat_label),
+        font = list(size = 15)
+      ),
+      xaxis  = list(
+        title         = "Review Period",
+        categoryorder = "array",
+        categoryarray = period_order
+      ),
+      yaxis  = list(
+        title = "Milestone Score (1–9)",
+        range = c(0.5, 9.5),
+        dtick = 1
+      ),
+      legend = list(
+        orientation = "v",
+        x           = 1.02,
+        y           = 1,
+        xanchor     = "left",
+        font        = list(size = 13)
+      ),
+      plot_bgcolor  = "#fafafa",
+      paper_bgcolor = "#ffffff",
+      font          = list(family = "Inter, sans-serif", size = 12),
+      margin        = list(l = 60, r = 180, t = 60, b = 80)
+    )
   })
 
   }  # End of inner server function
