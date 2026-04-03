@@ -14,10 +14,11 @@ if (!exists("%>%")) {
 }
 
 # Source all R files in correct order
-source("R/global.R")      # Global configuration and data loading
-source("R/helpers.R")     # Pure helper functions
-source("R/wrappers.R")    # Data access wrappers
-source("R/ui.R")          # UI definition
+source("R/global.R")             # Global configuration and data loading
+source("R/helpers.R")            # Pure helper functions
+source("R/wrappers.R")           # Data access wrappers
+source("R/redcap_submission.R")  # REDCap write-back functions
+source("R/ui.R")                 # UI definition
 
 # Load data once at app startup
 rdm_data <- load_ccc_data()

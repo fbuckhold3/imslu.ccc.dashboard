@@ -28,9 +28,9 @@ map_field_to_display <- function(field_name) {
     "rep_sbp3" = "SBP3",
 
     # Practice-Based Learning
-    "rep_pbli1" = "PBLI1",
-    "rep_pbli2" = "PBLI2",
-    "rep_pbli3" = "PBLI3",
+    "rep_pbl1" = "PBL1",
+    "rep_pbl2" = "PBL2",
+    "rep_pbl3" = "PBL3",
 
     # Professionalism
     "rep_prof1" = "PROF1",
@@ -102,8 +102,8 @@ get_competency_full_name <- function(competency) {
     "SBP3" = "SBP3: Physician Role in Health Care Systems",
 
     # Practice-Based Learning and Improvement
-    "PBLI1" = "PBLI1: Evidence-Based and Informed Practice",
-    "PBLI2" = "PBLI2: Reflective Practice and Commitment to Personal Growth",
+    "PBL1" = "PBL1: Evidence-Based and Informed Practice",
+    "PBL2" = "PBL2: Reflective Practice and Commitment to Personal Growth",
 
     # Professionalism
     "PROF1" = "PROF1: Professional Behavior",

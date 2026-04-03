@@ -380,7 +380,7 @@ get_milestone_values_for_edit <- function(rdm_data, record_id, period_name) {
   }
 
   # Get all milestone value columns (not descriptions, not metadata)
-  value_cols <- grep("^rep_(pc|mk|sbp|pbli|prof|ics)\\d+$", names(program_data), value = TRUE)
+  value_cols <- grep("^rep_(pc|mk|sbp|pbl|prof|ics)\\d+$", names(program_data), value = TRUE)
 
   milestone_values <- data.frame(
     competency = character(),
@@ -455,6 +455,242 @@ get_ccc_review_data <- function(rdm_data, record_id, period_name) {
     period_name
   )
 }
+
+# ==============================================================================
+# FOLLOW-UP TRACKER HELPERS
+# ==============================================================================
+
+#' Build Follow-up Tracker Summary
+#'
+#' Returns one row per resident who has ANY qualifying ccc_review record.
+#' A record qualifies if: ccc_rev_type=="2" OR ccc_concern=="1" OR any
+#' ccc_action___N=="1".
+#' Aggregates across all qualifying records for each resident.
+#'
+#' @param rdm_data List containing all data from load_ccc_data()
+#' @return Data frame with one row per qualifying resident, columns:
+#'   record_id, Resident, Level, Coach, Type, Last Review,
+#'   Current Status, All Actions, Person Responsible, Follow-up Notes,
+#'   is_interim, is_initiation, is_ongoing, is_resolved, is_recurring
+get_tracker_summary <- function(rdm_data) {
+
+  if (is.null(rdm_data$all_forms$ccc_review)) return(data.frame())
+
+  ccc_all <- rdm_data$all_forms$ccc_review %>%
+    filter(redcap_repeat_instrument == "ccc_review")
+
+  if (nrow(ccc_all) == 0) return(data.frame())
+
+  # Name / level / coach lookups
+  residents <- rdm_data$residents
+  id_to_name  <- setNames(as.character(residents$full_name),    as.character(residents$record_id))
+  id_to_level <- setNames(as.character(residents$current_period), as.character(residents$record_id))
+
+  id_to_coach <- setNames(rep("", nrow(residents)), as.character(residents$record_id))
+  if ("coach" %in% names(residents)) {
+    coach_choices <- get_field_choices(rdm_data$data_dict, "coach")
+    for (i in seq_len(nrow(residents))) {
+      cv <- as.character(residents$coach[i])
+      if (!is.na(cv) && nchar(cv) > 0) {
+        id_to_coach[as.character(residents$record_id[i])] <-
+          if (length(coach_choices) > 0 && cv %in% names(coach_choices))
+            as.character(coach_choices[cv])
+          else cv
+      }
+    }
+  }
+
+  # Identify qualifying rows
+  action_cols_present  <- intersect(paste0("ccc_action___", 1:8),  names(ccc_all))
+  status_cols_present  <- intersect(paste0("ccc_action_status___", 1:4), names(ccc_all))
+
+  has_action <- if (length(action_cols_present) > 0) {
+    apply(ccc_all[, action_cols_present, drop = FALSE], 1, function(r) any(!is.na(r) & r == "1"))
+  } else rep(FALSE, nrow(ccc_all))
+
+  has_interim  <- !is.na(ccc_all$ccc_rev_type) & ccc_all$ccc_rev_type == "2"
+  has_concern  <- if ("ccc_concern" %in% names(ccc_all))
+    !is.na(ccc_all$ccc_concern) & ccc_all$ccc_concern == "1"
+  else rep(FALSE, nrow(ccc_all))
+
+  qualifying <- ccc_all[has_interim | has_concern | has_action, ]
+  if (nrow(qualifying) == 0) return(data.frame())
+
+  qualifying_rids <- unique(qualifying$record_id)
+
+  result_list <- lapply(qualifying_rids, function(rid) {
+    recs <- qualifying[qualifying$record_id == rid, ]
+
+    # Sort descending by date
+    if ("ccc_date" %in% names(recs)) {
+      recs <- recs[order(recs$ccc_date, decreasing = TRUE, na.last = TRUE), ]
+    }
+    most_recent <- recs[1, ]
+
+    # Type
+    type_display <- if (any(!is.na(recs$ccc_rev_type) & recs$ccc_rev_type == "2")) "Interim" else "Scheduled"
+
+    # Last review date
+    last_date <- if ("ccc_date" %in% names(most_recent)) {
+      as.character(most_recent$ccc_date[1])
+    } else ""
+
+    # Current status from most recent record
+    status_labels <- c()
+    for (sc in status_cols_present) {
+      n <- gsub("ccc_action_status___", "", sc)
+      val <- most_recent[[sc]][1]
+      if (!is.na(val) && val == "1") {
+        status_labels <- c(status_labels, CCC_STATUS_LABELS[n])
+      }
+    }
+    current_status <- if (length(status_labels) > 0) paste(status_labels, collapse = ", ") else "—"
+
+    # All actions across all qualifying records (deduplicated)
+    action_labels <- c()
+    for (ac in action_cols_present) {
+      n <- gsub("ccc_action___", "", ac)
+      if (any(!is.na(recs[[ac]]) & recs[[ac]] == "1")) {
+        action_labels <- c(action_labels, CCC_ACTION_LABELS[n])
+      }
+    }
+    all_actions <- if (length(action_labels) > 0) paste(unique(action_labels), collapse = ", ") else "—"
+
+    # Person responsible: most recent non-empty
+    person_resp <- ""
+    if ("ccc_fu_resp" %in% names(recs)) {
+      for (i in seq_len(nrow(recs))) {
+        v <- as.character(recs$ccc_fu_resp[i])
+        if (!is.na(v) && nchar(trimws(v)) > 0) { person_resp <- v; break }
+      }
+    }
+
+    # Follow-up notes: most recent non-empty
+    follow_up <- ""
+    if ("ccc_issues_follow_up" %in% names(recs)) {
+      for (i in seq_len(nrow(recs))) {
+        v <- as.character(recs$ccc_issues_follow_up[i])
+        if (!is.na(v) && nchar(trimws(v)) > 0) { follow_up <- v; break }
+      }
+    }
+
+    # Flags for value-box counts and filter
+    is_interim    <- any(!is.na(recs$ccc_rev_type)     & recs$ccc_rev_type == "2")
+    is_concern    <- "ccc_concern" %in% names(recs) &&
+                     any(!is.na(recs$ccc_concern) & recs$ccc_concern == "1")
+
+    make_status_flag <- function(code) {
+      sc <- paste0("ccc_action_status___", code)
+      sc %in% names(recs) && any(!is.na(recs[[sc]]) & recs[[sc]] == "1")
+    }
+    is_initiation <- make_status_flag("1")
+    is_ongoing    <- make_status_flag("2")
+    is_resolved   <- make_status_flag("3")
+    is_recurring  <- make_status_flag("4")
+
+    rid_str <- as.character(rid)
+    data.frame(
+      record_id            = rid_str,
+      Resident             = if (!is.na(id_to_name[rid_str]))  id_to_name[rid_str]  else rid_str,
+      Level                = if (!is.na(id_to_level[rid_str])) id_to_level[rid_str] else "",
+      Coach                = if (!is.na(id_to_coach[rid_str])) id_to_coach[rid_str] else "",
+      Type                 = type_display,
+      Concern              = if (is_concern) "Yes" else "—",
+      `Last Review`        = last_date,
+      `Current Status`     = current_status,
+      `All Actions`        = all_actions,
+      `Person Responsible` = person_resp,
+      `Follow-up Notes`    = follow_up,
+      is_interim           = is_interim,
+      is_concern           = is_concern,
+      is_initiation        = is_initiation,
+      is_ongoing           = is_ongoing,
+      is_resolved          = is_resolved,
+      is_recurring         = is_recurring,
+      stringsAsFactors     = FALSE,
+      check.names          = FALSE
+    )
+  })
+
+  do.call(rbind, result_list)
+}
+
+#' Get All CCC Review Records (for CCC Review tab)
+#'
+#' Returns a display-ready data frame of ALL ccc_review records, newest first.
+#' Resident names are joined from residents data.
+#'
+#' @param rdm_data List containing all data from load_ccc_data()
+#' @return Data frame with columns:
+#'   record_id, Resident, Session, Date, Type, Concern, Actions, Status, Follow-up Notes
+get_ccc_review_all <- function(rdm_data) {
+
+  if (is.null(rdm_data$all_forms$ccc_review)) return(data.frame())
+
+  ccc_all <- rdm_data$all_forms$ccc_review %>%
+    filter(redcap_repeat_instrument == "ccc_review")
+
+  if (nrow(ccc_all) == 0) return(data.frame())
+
+  residents   <- rdm_data$residents
+  id_to_name  <- setNames(as.character(residents$full_name), as.character(residents$record_id))
+
+  action_cols_present <- intersect(paste0("ccc_action___", 1:8), names(ccc_all))
+  status_cols_present <- intersect(paste0("ccc_action_status___", 1:4), names(ccc_all))
+
+  rows <- lapply(seq_len(nrow(ccc_all)), function(i) {
+    row <- ccc_all[i, ]
+    rid_str <- as.character(row$record_id[1])
+
+    type_label <- if (!is.na(row$ccc_rev_type[1]) && row$ccc_rev_type[1] == "2") "Interim" else "Scheduled"
+
+    concern_label <- if ("ccc_concern" %in% names(row) &&
+                         !is.na(row$ccc_concern[1]) && row$ccc_concern[1] == "1") "Yes" else "No"
+
+    action_labels <- c()
+    for (ac in action_cols_present) {
+      n <- gsub("ccc_action___", "", ac)
+      if (!is.na(row[[ac]][1]) && row[[ac]][1] == "1")
+        action_labels <- c(action_labels, CCC_ACTION_LABELS[n])
+    }
+    actions_str <- if (length(action_labels) > 0) paste(action_labels, collapse = "; ") else ""
+
+    status_labels <- c()
+    for (sc in status_cols_present) {
+      n <- gsub("ccc_action_status___", "", sc)
+      if (!is.na(row[[sc]][1]) && row[[sc]][1] == "1")
+        status_labels <- c(status_labels, CCC_STATUS_LABELS[n])
+    }
+    status_str <- if (length(status_labels) > 0) paste(status_labels, collapse = ", ") else ""
+
+    data.frame(
+      record_id          = rid_str,
+      Resident           = if (!is.na(id_to_name[rid_str])) id_to_name[rid_str] else rid_str,
+      Session            = if ("ccc_session"          %in% names(row)) as.character(row$ccc_session[1])          else "",
+      Date               = if ("ccc_date"             %in% names(row)) as.character(row$ccc_date[1])             else "",
+      Type               = type_label,
+      Concern            = concern_label,
+      Actions            = actions_str,
+      Status             = status_str,
+      `Follow-up Notes`  = if ("ccc_issues_follow_up" %in% names(row)) as.character(row$ccc_issues_follow_up[1]) else "",
+      stringsAsFactors   = FALSE,
+      check.names        = FALSE
+    )
+  })
+
+  result <- do.call(rbind, rows)
+
+  # Sort newest first
+  if ("Date" %in% names(result) && any(nchar(result$Date) > 0)) {
+    result <- result[order(result$Date, decreasing = TRUE, na.last = TRUE), ]
+  }
+
+  result
+}
+
+# ==============================================================================
+# EXISTING: Get Action Data Table
+# ==============================================================================
 
 #' Get Action Data Table
 #'
@@ -618,4 +854,220 @@ get_action_data_table <- function(rdm_data, record_id) {
   }
 
   return(result)
+}
+
+# ==============================================================================
+# AD HOC REVIEW CONTEXT HELPER
+# ==============================================================================
+
+#' Get context data for the Ad Hoc Review panel
+#'
+#' Returns a named list with the most relevant coaching and CCC review data
+#' for a resident, regardless of which period it's from. Used to populate
+#' the "Previous Reviews" two-column summary table on the Ad Hoc page.
+#'
+#' @param rdm_data List containing all data from load_ccc_data()
+#' @param record_id Resident record ID
+#' @return Named list with fields:
+#'   coach_period, coach_summary, coach_ilp,
+#'   ccc_session, ccc_comments, ccc_ilp, ccc_issues, ccc_concern,
+#'   last_concern_date, last_concern_notes, last_concern_type
+get_adhoc_review_context <- function(rdm_data, record_id) {
+
+  ctx <- list(
+    coach_period       = "",  coach_summary      = "",  coach_ilp          = "",
+    ccc_session        = "",  ccc_comments       = "",  ccc_ilp            = "",
+    ccc_issues         = "",  ccc_concern        = "No",
+    last_concern_date  = "",  last_concern_notes = "",  last_concern_type  = ""
+  )
+
+  # ---- Coach review (most recent overall) ----
+  coach_df <- rdm_data$all_forms$coach_rev
+  if (!is.null(coach_df) && nrow(coach_df) > 0) {
+    coach_res <- coach_df %>%
+      filter(record_id == !!record_id, redcap_repeat_instrument == "coach_rev") %>%
+      arrange(desc(redcap_repeat_instance))
+
+    if (nrow(coach_res) > 0) {
+      recent <- coach_res[1, ]
+      if ("coach_period" %in% names(recent))
+        ctx$coach_period <- as.character(recent$coach_period[1])
+
+      # Summary / notes: try known names first, then any field matching
+      # "summary|note|comment|narrative|interim" (excluding metadata columns)
+      meta_cols <- c("record_id", "redcap_repeat_instrument", "redcap_repeat_instance",
+                     "redcap_survey_identifier", "coach_period", "coach_date")
+      summary_candidates <- c(
+        "coach_summary", "coach_comments", "coach_notes", "coach_narrative",
+        grep("(summary|comment|note|narrative)", names(recent),
+             value = TRUE, ignore.case = TRUE)
+      )
+      summary_candidates <- unique(setdiff(summary_candidates, meta_cols))
+      for (fld in summary_candidates) {
+        if (fld %in% names(recent)) {
+          v <- as.character(recent[[fld]][1])
+          if (!is.na(v) && nchar(trimws(v)) > 0) { ctx$coach_summary <- v; break }
+        }
+      }
+
+      # ILP / goals: try explicit names then grep for ilp|goal|mile
+      ilp_candidates <- c(
+        "coach_ilp_final", "coach_ilp", "coach_mile_goal",
+        grep("(ilp|goal|mile)", names(recent),
+             value = TRUE, ignore.case = TRUE)
+      )
+      ilp_candidates <- unique(setdiff(ilp_candidates, meta_cols))
+      for (fld in ilp_candidates) {
+        if (fld %in% names(recent)) {
+          v <- as.character(recent[[fld]][1])
+          if (!is.na(v) && nchar(trimws(v)) > 0) { ctx$coach_ilp <- v; break }
+        }
+      }
+
+      # Wellness / career as bonus fields
+      for (fld in grep("(wellness|career)", names(recent), value = TRUE, ignore.case = TRUE)) {
+        v <- as.character(recent[[fld]][1])
+        if (!is.na(v) && nchar(trimws(v)) > 0) {
+          ctx$coach_summary <- paste0(
+            if (nchar(ctx$coach_summary) > 0) paste0(ctx$coach_summary, "\n") else "",
+            tools::toTitleCase(gsub("coach_|_", " ", fld)), ": ", v
+          )
+          break
+        }
+      }
+    }
+  }
+
+  # ---- CCC review ----
+  ccc_df <- rdm_data$all_forms$ccc_review
+  if (!is.null(ccc_df) && nrow(ccc_df) > 0) {
+    ccc_res <- ccc_df %>%
+      filter(record_id == !!record_id, redcap_repeat_instrument == "ccc_review") %>%
+      arrange(desc(ccc_date), desc(redcap_repeat_instance))
+
+    if (nrow(ccc_res) > 0) {
+
+      # Most recent semi-annual (type == "1")
+      ccc_semi <- ccc_res %>%
+        filter(!is.na(ccc_rev_type) & ccc_rev_type == "1") %>%
+        slice(1)
+
+      if (nrow(ccc_semi) > 0) {
+        if ("ccc_session"          %in% names(ccc_semi)) ctx$ccc_session  <- as.character(ccc_semi$ccc_session[1])
+        if ("ccc_comments"         %in% names(ccc_semi)) ctx$ccc_comments <- as.character(ccc_semi$ccc_comments[1])
+        if ("ccc_ilp"              %in% names(ccc_semi)) ctx$ccc_ilp      <- as.character(ccc_semi$ccc_ilp[1])
+        if ("ccc_issues_follow_up" %in% names(ccc_semi)) ctx$ccc_issues   <- as.character(ccc_semi$ccc_issues_follow_up[1])
+        if ("ccc_concern"          %in% names(ccc_semi) &&
+            !is.na(ccc_semi$ccc_concern[1]) && ccc_semi$ccc_concern[1] == "1")
+          ctx$ccc_concern <- "Yes"
+      }
+
+      # Most recent record with any concern or follow-up (any type, any period)
+      has_fu_col <- "ccc_issues_follow_up" %in% names(ccc_res)
+      ccc_concern_rows <- if (has_fu_col) {
+        ccc_res %>%
+          filter((!is.na(ccc_concern) & ccc_concern == "1") |
+                 (!is.na(ccc_issues_follow_up) & nchar(trimws(ccc_issues_follow_up)) > 0))
+      } else {
+        ccc_res %>% filter(!is.na(ccc_concern) & ccc_concern == "1")
+      }
+
+      if (nrow(ccc_concern_rows) > 0) {
+        cr <- ccc_concern_rows[1, ]
+        if ("ccc_date"             %in% names(cr)) ctx$last_concern_date  <- as.character(cr$ccc_date[1])
+        if ("ccc_issues_follow_up" %in% names(cr)) ctx$last_concern_notes <- as.character(cr$ccc_issues_follow_up[1])
+        ctx$last_concern_type <- if (!is.na(cr$ccc_rev_type[1]) && cr$ccc_rev_type[1] == "2") "Interim" else "Scheduled"
+      }
+    }
+  }
+
+  # Normalise NA → ""
+  ctx <- lapply(ctx, function(v) {
+    v <- as.character(v)
+    if (is.na(v) || trimws(v) == "NA") "" else v
+  })
+
+  ctx
+}
+
+# ==============================================================================
+# MILESTONE ANALYSIS HELPER
+# ==============================================================================
+
+#' Build Longitudinal Milestone Dataset
+#'
+#' Converts all milestone_entry records into a long-format data frame suitable
+#' for trajectory plots.  Pass rdm_data loaded with include_archived = TRUE to
+#' include historical residents.
+#'
+#' @param rdm_data List from load_ccc_data()
+#' @return Data frame with columns:
+#'   record_id, full_name, grad_yr, prog_mile_period (ordered factor),
+#'   period_num, milestone (e.g. "PC1"), category (e.g. "PC"), score (numeric)
+get_milestone_longitudinal_data <- function(rdm_data) {
+
+  mile_data <- rdm_data$all_forms[["milestone_entry"]]
+  if (is.null(mile_data) || nrow(mile_data) == 0) return(data.frame())
+
+  mile_data <- mile_data %>%
+    filter(
+      redcap_repeat_instrument == "milestone_entry",
+      !is.na(prog_mile_period),
+      nchar(trimws(as.character(prog_mile_period))) > 0
+    )
+
+  if (nrow(mile_data) == 0) return(data.frame())
+
+  # Milestone numeric value columns
+  value_cols <- grep("^rep_(pc|mk|sbp|pbl|prof|ics)\\d+$",
+                     names(mile_data), value = TRUE)
+  if (length(value_cols) == 0) return(data.frame())
+
+  # Resident lookups
+  residents <- rdm_data$residents %>%
+    mutate(record_id = as.character(record_id))
+  id_to_name <- setNames(as.character(residents$full_name), residents$record_id)
+  id_to_grad <- setNames(as.character(residents$grad_yr),   residents$record_id)
+
+  period_order <- c(
+    "Mid Intern", "End Intern",
+    "Mid PGY2",   "End PGY2",
+    "Mid PGY3",   "Graduating"
+  )
+
+  # Manual pivot to long (avoids hard tidyr dependency)
+  long_rows <- lapply(seq_len(nrow(mile_data)), function(i) {
+    row    <- mile_data[i, ]
+    rid    <- as.character(row$record_id)
+    period <- as.character(row$prog_mile_period)
+
+    rows_for_row <- lapply(value_cols, function(col) {
+      val <- suppressWarnings(as.numeric(row[[col]]))
+      if (is.na(val)) return(NULL)
+      ms  <- toupper(gsub("rep_", "", col))
+      cat <- gsub("[0-9]+$", "", ms)
+      data.frame(
+        record_id        = rid,
+        full_name        = if (!is.na(id_to_name[rid])) id_to_name[rid] else rid,
+        grad_yr          = if (!is.na(id_to_grad[rid]))  id_to_grad[rid]  else NA_character_,
+        prog_mile_period = period,
+        period_num       = match(period, period_order),
+        milestone        = ms,
+        category         = cat,
+        score            = val,
+        stringsAsFactors = FALSE
+      )
+    })
+    do.call(rbind, Filter(Negate(is.null), rows_for_row))
+  })
+
+  long_data <- do.call(rbind, Filter(Negate(is.null), long_rows))
+  if (is.null(long_data) || nrow(long_data) == 0) return(data.frame())
+
+  long_data$prog_mile_period <- factor(
+    long_data$prog_mile_period,
+    levels = period_order
+  )
+
+  long_data
 }
