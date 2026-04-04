@@ -1945,45 +1945,45 @@ create_server <- function(initial_data) {
       ),
       tags$br(),
 
-      # Notes — two columns side by side
-      gmed::gmed_card(
-        title = "Review Notes",
-        fluidRow(
-          column(width = 6,
+      # Notes (left) + Concerns (right) in one row
+      fluidRow(
+        # Left col — two text boxes stacked
+        column(width = 8,
+          gmed::gmed_card(
+            title = "Review Notes",
             textAreaInput(
               "adhoc_ccc_interim",
               "Interim Notes:",
-              value = "",
-              rows = 5,
-              width = "100%",
+              value       = "",
+              rows        = 4,
+              width       = "100%",
               placeholder = "Interim update notes..."
-            )
-          ),
-          column(width = 6,
+            ),
+            tags$br(),
             textAreaInput(
               "adhoc_ccc_issues_follow_up",
               "Follow-up Issues:",
-              value = "",
-              rows = 5,
-              width = "100%",
+              value       = "",
+              rows        = 4,
+              width       = "100%",
               placeholder = "Issues requiring follow-up..."
             )
           )
-        )
-      ),
-      tags$br(),
-
-      # Concerns
-      gmed::gmed_card(
-        title = "Concerns",
-        radioButtons(
-          "adhoc_ccc_concern",
-          "Any Concerns?",
-          choices  = c("No" = "0", "Yes" = "1"),
-          selected = "0",
-          inline   = TRUE
         ),
-        uiOutput("adhoc_concern_content")
+
+        # Right col — concern checkboxes, always visible
+        column(width = 4,
+          gmed::gmed_card(
+            title = "Concerns",
+            tags$p(
+              class = "text-muted",
+              style = "font-size:0.88rem; margin-bottom:10px;",
+              icon("circle-info"),
+              " Check any that apply. Submitting with selections will automatically flag a concern."
+            ),
+            uiOutput("adhoc_concern_content")
+          )
+        )
       ),
 
       br(),
@@ -2016,18 +2016,14 @@ create_server <- function(initial_data) {
     )
   })
 
-  # Ad Hoc Concern Content
+  # Ad Hoc Concern Content — always visible; ccc_concern derived on submit
   output$adhoc_concern_content <- renderUI({
-    req(input$adhoc_ccc_concern)
-
-    if (input$adhoc_ccc_concern == "0") {
-      return(NULL)
-    }
+    req(input$adhoc_resident)
 
     # Get checkbox choices from data dictionary (for_ui = TRUE to get labels as names)
     competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency", for_ui = TRUE)
-    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action", for_ui = TRUE)
-    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
+    action_choices     <- get_field_choices(app_data()$data_dict, "ccc_action",     for_ui = TRUE)
+    status_choices     <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
 
     tagList(
       checkboxGroupInput(
@@ -2097,7 +2093,10 @@ create_server <- function(initial_data) {
       ccc_mile = "0",
       ccc_mile_notes = "",
       ccc_issues_follow_up = if (!is.null(input$adhoc_ccc_issues_follow_up) && nchar(trimws(input$adhoc_ccc_issues_follow_up)) > 0) as.character(input$adhoc_ccc_issues_follow_up) else "",
-      ccc_concern = if (!is.null(input$adhoc_ccc_concern)) as.character(input$adhoc_ccc_concern) else "0",
+      # Derive ccc_concern: "1" if any competency, action, or status box is checked
+      ccc_concern = if (length(input$adhoc_ccc_competency) > 0 ||
+                        length(input$adhoc_ccc_action) > 0 ||
+                        length(input$adhoc_ccc_action_status) > 0) "1" else "0",
       ccc_comments = "",
       ccc_review_complete = "2",  # Complete status
       stringsAsFactors = FALSE
@@ -2170,10 +2169,10 @@ create_server <- function(initial_data) {
 
         # Clear form inputs
         updateTextAreaInput(session, "adhoc_ccc_interim", value = "")
-        updateTextAreaInput(session, "adhoc_ccc_ilp", value = "")
-        updateRadioButtons(session, "adhoc_ccc_issues_yn", selected = "0")
         updateTextAreaInput(session, "adhoc_ccc_issues_follow_up", value = "")
-        updateRadioButtons(session, "adhoc_ccc_concern", selected = "0")
+        updateCheckboxGroupInput(session, "adhoc_ccc_competency",    selected = character(0))
+        updateCheckboxGroupInput(session, "adhoc_ccc_action",        selected = character(0))
+        updateCheckboxGroupInput(session, "adhoc_ccc_action_status", selected = character(0))
 
         showNotification(
           "Form cleared. You can now review another resident.",
