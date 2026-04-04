@@ -1830,15 +1830,61 @@ create_server <- function(initial_data) {
     self  <- safe_recent("milestone_selfevaluation_c33c",  "prog_mile_period_self")
     acgme <- safe_recent("acgme_miles",                    "acgme_mile_period")
 
-    milestone_badge <- function(res, label) {
-      period_tag <- if (res$period != "—")
-        tags$small(class = "text-muted d-block mt-1", res$period)
-      else NULL
-      if (nrow(res$df) > 0) {
-        tagList(gmed::gmed_status_badge("Available", "complete"), period_tag)
-      } else {
-        tagList(gmed::gmed_status_badge("No data", "incomplete"), period_tag)
+    # Build a compact score table from one row of milestone data
+    milestone_score_table <- function(res) {
+      if (nrow(res$df) == 0) {
+        return(tags$p(class = "text-muted", style = "font-style:italic; font-size:0.9rem;",
+                      icon("info-circle"), " No data"))
       }
+      row <- res$df
+
+      # All milestone fields in standard order
+      ms_fields <- c(
+        "rep_pc1","rep_pc2","rep_pc3","rep_pc4","rep_pc5","rep_pc6",
+        "rep_mk1","rep_mk2","rep_mk3",
+        "rep_sbp1","rep_sbp2","rep_sbp3",
+        "rep_pbl1","rep_pbl2",
+        "rep_prof1","rep_prof2","rep_prof3","rep_prof4",
+        "rep_ics1","rep_ics2","rep_ics3"
+      )
+      present_fields <- ms_fields[ms_fields %in% names(row)]
+      if (length(present_fields) == 0) {
+        return(tags$p(class = "text-muted", style = "font-style:italic; font-size:0.9rem;",
+                      "No competency scores found."))
+      }
+
+      period_label <- if (res$period != "—")
+        tags$small(class = "text-muted d-block mb-2", icon("calendar"), " Period: ", res$period)
+      else NULL
+
+      score_rows <- lapply(present_fields, function(f) {
+        lbl   <- map_field_to_display(f)
+        val   <- as.character(row[[f]][1])
+        score <- suppressWarnings(as.numeric(val))
+        # Color band: 1-3 red, 4-5 yellow, 6-9 green
+        badge_class <- if (!is.na(score) && score >= 6) "badge bg-success"
+                       else if (!is.na(score) && score >= 4) "badge bg-warning text-dark"
+                       else if (!is.na(score)) "badge bg-danger"
+                       else "badge bg-secondary"
+        score_str <- if (is.na(score) || val == "" || val == "NA") "—" else val
+        tags$tr(
+          tags$td(tags$strong(lbl),
+                  style = "font-size:0.9rem; padding:3px 8px; width:55px;"),
+          tags$td(tags$span(class = badge_class,
+                            style = "font-size:0.85rem; min-width:28px; text-align:center;",
+                            score_str),
+                  style = "padding:3px 8px;")
+        )
+      })
+
+      tagList(
+        period_label,
+        tags$table(
+          class = "table table-sm table-borderless mb-0",
+          style = "width:auto;",
+          tags$tbody(score_rows)
+        )
+      )
     }
 
     # ------------------------------------------------------------------
@@ -1913,13 +1959,13 @@ create_server <- function(initial_data) {
              "Showing the latest available record regardless of review period."),
       fluidRow(
         column(width = 4,
-          gmed::gmed_card(title = "Program Milestones",  milestone_badge(prog,  "Program"))
+          gmed::gmed_card(title = "Program Milestones",  milestone_score_table(prog))
         ),
         column(width = 4,
-          gmed::gmed_card(title = "Self-Evaluation",     milestone_badge(self,  "Self"))
+          gmed::gmed_card(title = "Self-Evaluation",     milestone_score_table(self))
         ),
         column(width = 4,
-          gmed::gmed_card(title = "ACGME Milestones",    milestone_badge(acgme, "ACGME"))
+          gmed::gmed_card(title = "ACGME Milestones",    milestone_score_table(acgme))
         )
       ),
 
@@ -3031,16 +3077,16 @@ create_server <- function(initial_data) {
       plotly::layout(
         title  = list(text = plot_title, font = list(size = 16, color = "#1a202c")),
         xaxis  = list(
-          title         = list(text = "Review Period", font = list(size = 14, color = "#2d3748")),
+          title         = list(text = "Review Period", font = list(size = 15, color = "#1a202c")),
           categoryorder = "array",
           categoryarray = period_order,
-          tickfont      = list(size = 13, color = "#2d3748"),
-          gridcolor     = "#e2e8f0",
+          tickfont      = list(size = 15, color = "#1a202c"),
+          gridcolor     = "#c7d2da",
           linecolor     = "#cbd5e0",
           linewidth     = 1
         ),
         yaxis  = list(
-          title     = list(text = "Milestone Score (1–9)", font = list(size = 14, color = "#2d3748")),
+          title     = list(text = "Milestone Score (1–9)", font = list(size = 15, color = "#1a202c")),
           range     = c(0.5, 9.5),
           dtick     = 1,
           tickfont  = list(size = 13, color = "#2d3748"),
@@ -3152,8 +3198,8 @@ create_server <- function(initial_data) {
           x         = x_prog,
           ymin      = prog_summ$q25,
           ymax      = prog_summ$q75,
-          fillcolor = "rgba(100,116,139,0.28)",
-          line      = list(color = "rgba(100,116,139,0.5)", width = 1),
+          fillcolor = "rgba(100,116,139,0.35)",
+          line      = list(color = "rgba(71,85,105,0.7)", width = 1.5),
           name      = paste0("Program IQR",
                              if (!is.null(cat_filter) && cat_filter != "All")
                                paste0(" (", cat_filter, " avg)") else ""),
@@ -3228,7 +3274,7 @@ create_server <- function(initial_data) {
         font = list(size = 16, color = "#1a202c")
       ),
       xaxis  = list(
-        title         = list(text = "Review Period", font = list(size = 14, color = "#2d3748")),
+        title         = list(text = "Review Period", font = list(size = 15, color = "#1a202c")),
         categoryorder = "array",
         categoryarray = period_order,
         tickfont      = list(size = 13, color = "#2d3748"),
@@ -3237,11 +3283,11 @@ create_server <- function(initial_data) {
         linewidth     = 1
       ),
       yaxis  = list(
-        title     = list(text = "Milestone Score (1–9)", font = list(size = 14, color = "#2d3748")),
+        title     = list(text = "Milestone Score (1–9)", font = list(size = 15, color = "#1a202c")),
         range     = c(0.5, 9.5),
         dtick     = 1,
-        tickfont  = list(size = 13, color = "#2d3748"),
-        gridcolor = "#e2e8f0",
+        tickfont  = list(size = 15, color = "#1a202c"),
+        gridcolor = "#c7d2da",
         linecolor = "#cbd5e0",
         linewidth = 1
       ),
