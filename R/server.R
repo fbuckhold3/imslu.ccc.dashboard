@@ -1883,8 +1883,6 @@ create_server <- function(initial_data) {
     else
       tags$span(class = "text-muted", "No")
 
-    coach_label <- paste0("Coach Notes",
-      if (nchar(ctx$coach_period) > 0) paste0(" (", ctx$coach_period, ")") else "")
     ccc_label   <- paste0("Last CCC Session",
       if (nchar(ctx$ccc_session) > 0)  paste0(" (", ctx$ccc_session,  ")") else "")
     concern_label <- paste0("CCC Concern",
@@ -1897,7 +1895,6 @@ create_server <- function(initial_data) {
       class = "table table-sm table-borderless",
       style = "margin:0;",
       tags$tbody(
-        info_row(coach_label,        ctx$coach_summary),
         info_row("Coach ILP / Goals", ctx$coach_ilp),
         info_row("CCC ILP",           ctx$ccc_ilp),
         if (ctx$ccc_concern == "Yes" || nchar(ctx$ccc_issues) > 0)
@@ -1915,8 +1912,8 @@ create_server <- function(initial_data) {
       )
     )
 
-    has_any_context <- any(nchar(c(ctx$coach_summary, ctx$coach_ilp,
-                                   ctx$ccc_ilp, ctx$ccc_issues, ctx$last_concern_notes)) > 0) ||
+    has_any_context <- any(nchar(c(ctx$coach_ilp, ctx$ccc_ilp,
+                                   ctx$ccc_issues, ctx$last_concern_notes)) > 0) ||
                        ctx$ccc_concern == "Yes"
 
     tagList(
@@ -1944,15 +1941,32 @@ create_server <- function(initial_data) {
       ),
 
       br(),
-      gmed::gmed_card(
-        title = "Previous Reviews",
-        tags$p(class = "text-muted", style = "font-size:0.8rem; margin-bottom:10px;",
-               "Coach and CCC notes from the most recent relevant reviews."),
-        if (has_any_context)
-          context_table
-        else
-          tags$p(class = "text-muted", style = "font-style:italic;",
-                 icon("info-circle"), " No prior coach notes or CCC review data found for this resident.")
+      fluidRow(
+        # Left — Coach Summary (always shown)
+        column(width = 6,
+          gmed::gmed_card(
+            title = paste0("Coach Summary",
+                           if (nchar(ctx$coach_period) > 0)
+                             paste0(" (", ctx$coach_period, ")") else ""),
+            if (nchar(trimws(ctx$coach_summary)) > 0)
+              tags$p(style = "font-size:0.95rem; line-height:1.6; white-space:pre-wrap;",
+                     ctx$coach_summary)
+            else
+              tags$p(class = "text-muted", style = "font-style:italic;",
+                     icon("info-circle"), " No coach summary on file.")
+          )
+        ),
+        # Right — Prior CCC context
+        column(width = 6,
+          gmed::gmed_card(
+            title = "Prior CCC Notes",
+            if (has_any_context)
+              context_table
+            else
+              tags$p(class = "text-muted", style = "font-style:italic;",
+                     icon("info-circle"), " No prior CCC review data found.")
+          )
+        )
       ),
 
       tags$hr(),
