@@ -314,16 +314,10 @@ load_ccc_data <- function(
       ungroup()
   }
 
-  # Create milestone workflow using data dictionary approach
-  rdm_data$milestone_workflow <- tryCatch({
-    gmed::create_milestone_workflow_from_dict(
-      all_forms = rdm_data$all_forms,
-      data_dict = rdm_data$data_dict,
-      resident_data = rdm_data$residents
-    )
-  }, error = function(e) {
-    NULL
-  })
+  # NOTE: milestone_workflow is intentionally NOT computed here.
+  # It is expensive (~5-15 sec) and computed lazily in server.R the first
+  # time a resident detail panel is opened (see "Lazy milestone workflow" observer).
+  rdm_data$milestone_workflow <- NULL
 
   return(rdm_data)
 }

@@ -97,6 +97,34 @@ create_server <- function(initial_data) {
   })
 
   # ===========================================================================
+  # LAZY MILESTONE WORKFLOW
+  # Computed once the first time a resident is selected (not at startup).
+  # Stored back into app_data() so spider plots pick it up automatically.
+  # ===========================================================================
+
+  observe({
+    rid <- selected_resident_id()
+    req(rid)
+
+    # Already computed — nothing to do
+    if (!is.null(app_data()$milestone_workflow)) return()
+
+    mw <- tryCatch({
+      gmed::create_milestone_workflow_from_dict(
+        all_forms     = app_data()$all_forms,
+        data_dict     = app_data()$data_dict,
+        resident_data = app_data()$residents
+      )
+    }, error = function(e) NULL)
+
+    if (!is.null(mw)) {
+      d <- app_data()
+      d$milestone_workflow <- mw
+      app_data(d)
+    }
+  }, priority = -10)   # low priority — runs after UI renders
+
+  # ===========================================================================
   # MODE 1: CCC SEMI-ANNUAL REVIEW
   # ===========================================================================
 
@@ -1902,93 +1930,52 @@ create_server <- function(initial_data) {
       tags$hr(),
       h4("Ad Hoc Review Form", style = "margin-top: 30px;"),
 
-      # Action Data Table for Ad Hoc
+      # Previous action items
       gmed::gmed_card(
         title = "Previous Action Items",
         DT::DTOutput("adhoc_action_data_table")
       ),
       tags$br(),
 
-      # Interim Update
-      fluidRow(
-        column(
-          width = 12,
-          gmed::gmed_card(
-            title = "Interim Update",
+      # Notes — two columns side by side
+      gmed::gmed_card(
+        title = "Review Notes",
+        fluidRow(
+          column(width = 6,
             textAreaInput(
               "adhoc_ccc_interim",
               "Interim Notes:",
               value = "",
-              rows = 4,
+              rows = 5,
               width = "100%",
-              placeholder = "Enter interim update notes..."
+              placeholder = "Interim update notes..."
             )
-          )
-        )
-      ),
-
-      # ILP Section
-      fluidRow(
-        column(
-          width = 12,
-          gmed::gmed_card(
-            title = "Individual Learning Plan",
+          ),
+          column(width = 6,
             textAreaInput(
-              "adhoc_ccc_ilp",
-              "CCC ILP:",
+              "adhoc_ccc_issues_follow_up",
+              "Follow-up Issues:",
               value = "",
-              rows = 4,
+              rows = 5,
               width = "100%",
-              placeholder = "Enter CCC Individual Learning Plan..."
+              placeholder = "Issues requiring follow-up..."
             )
           )
         )
       ),
-
-      # Follow-up Issues
-      fluidRow(
-        column(
-          width = 12,
-          gmed::gmed_card(
-            title = "Follow-up Issues",
-            radioButtons(
-              "adhoc_ccc_issues_yn",
-              "Any Follow-up Issues?",
-              choices = c("No" = "0", "Yes" = "1"),
-              selected = "0",
-              inline = TRUE
-            ),
-            conditionalPanel(
-              condition = "input.adhoc_ccc_issues_yn == '1'",
-              textAreaInput(
-                "adhoc_ccc_issues_follow_up",
-                "Describe Follow-up Issues:",
-                value = "",
-                rows = 3,
-                width = "100%",
-                placeholder = "Describe any issues requiring follow-up..."
-              )
-            )
-          )
-        )
-      ),
+      tags$br(),
 
       # Concerns
-      fluidRow(
-        column(
-          width = 12,
-          gmed::gmed_card(
-            title = "Concerns",
-            radioButtons(
-              "adhoc_ccc_concern",
-              "Any Concerns?",
-              choices = c("No" = "0", "Yes" = "1"),
-              selected = "0",
-              inline = TRUE
-            ),
-            uiOutput("adhoc_concern_content")
-          )
-        )
+      gmed::gmed_card(
+        title = "Concerns",
+        radioButtons(
+          "adhoc_ccc_concern",
+          "Any Concerns?",
+          choices  = c("No" = "0", "Yes" = "1"),
+          selected = "0",
+          inline   = TRUE
+        ),
+        uiOutput("adhoc_concern_content")
       ),
 
       br(),
@@ -1997,7 +1984,7 @@ create_server <- function(initial_data) {
         "submit_adhoc_review",
         "Submit Ad Hoc Review",
         class = "btn-primary btn-lg",
-        icon = icon("check")
+        icon  = icon("check")
       )
     )
   })
@@ -2107,8 +2094,7 @@ create_server <- function(initial_data) {
       ccc_rev_type = as.character(review_type),
       ccc_session = as.character(period_code),
       ccc_interim = if (!is.null(input$adhoc_ccc_interim) && nchar(trimws(input$adhoc_ccc_interim)) > 0) as.character(input$adhoc_ccc_interim) else "",
-      ccc_ilp = if (!is.null(input$adhoc_ccc_ilp) && nchar(trimws(input$adhoc_ccc_ilp)) > 0) as.character(input$adhoc_ccc_ilp) else "",
-      ccc_mile = "0",  # Not applicable for ad hoc
+      ccc_mile = "0",
       ccc_mile_notes = "",
       ccc_issues_follow_up = if (!is.null(input$adhoc_ccc_issues_follow_up) && nchar(trimws(input$adhoc_ccc_issues_follow_up)) > 0) as.character(input$adhoc_ccc_issues_follow_up) else "",
       ccc_concern = if (!is.null(input$adhoc_ccc_concern)) as.character(input$adhoc_ccc_concern) else "0",
@@ -2562,11 +2548,71 @@ create_server <- function(initial_data) {
     if (length(status_choices_ui) == 0)
       status_choices_ui <- setNames(as.character(1:4), CCC_STATUS_LABELS)
 
+    # ---- Build inline history table ----------------------------------------
+    hist_sorted <- qualifying_reviews[
+      order(qualifying_reviews$ccc_date, decreasing = TRUE, na.last = TRUE), ]
+
+    status_cols_p <- intersect(paste0("ccc_action_status___", 1:4), names(hist_sorted))
+
+    hist_rows <- lapply(seq_len(nrow(hist_sorted)), function(i) {
+      row <- hist_sorted[i, ]
+
+      date_val <- if (!is.na(row$ccc_date) && row$ccc_date != "")
+        as.character(row$ccc_date) else "—"
+
+      type_val <- if (!is.na(row$ccc_rev_type) && row$ccc_rev_type == "2")
+        tags$span(class = "badge", style = "background:#6f42c1; color:#fff;", "Interim")
+      else
+        tags$span(class = "badge", style = "background:#0d6efd; color:#fff;", "Scheduled")
+
+      status_labels <- c()
+      for (sc in status_cols_p) {
+        n <- gsub("ccc_action_status___", "", sc)
+        if (!is.na(row[[sc]]) && row[[sc]] == "1")
+          status_labels <- c(status_labels, CCC_STATUS_LABELS[n])
+      }
+      status_val <- if (length(status_labels) > 0)
+        paste(status_labels, collapse = ", ") else "—"
+
+      notes_val <- if ("ccc_issues_follow_up" %in% names(row) &&
+                       !is.na(row$ccc_issues_follow_up) &&
+                       nchar(trimws(row$ccc_issues_follow_up)) > 0)
+        as.character(row$ccc_issues_follow_up) else "—"
+
+      tags$tr(
+        tags$td(date_val,   style = "white-space:nowrap; width:100px;"),
+        tags$td(type_val,   style = "white-space:nowrap; width:90px;"),
+        tags$td(status_val, style = "width:140px;"),
+        tags$td(notes_val,  style = "font-size:0.9rem; color:#374151;")
+      )
+    })
+
+    history_table <- tags$div(
+      style = "max-height:220px; overflow-y:auto; margin-bottom:4px;",
+      tags$table(
+        class = "table table-sm table-striped table-hover mb-0",
+        style = "font-size:0.95rem;",
+        tags$thead(
+          class = "table-light",
+          tags$tr(
+            tags$th("Date"), tags$th("Type"), tags$th("Status"), tags$th("Follow-up Notes")
+          )
+        ),
+        do.call(tags$tbody, hist_rows)
+      )
+    )
+    # -----------------------------------------------------------------------
+
     showModal(modalDialog(
       title     = paste("Action Items —", resident_name),
       size      = "l",
       easyClose = TRUE,
       footer    = modalButton("Close"),
+
+      # History at the top
+      h5("Review History", style = "font-weight:700; margin-bottom:8px;"),
+      history_table,
+      tags$hr(style = "margin:16px 0 14px;"),
 
       tabsetPanel(
         id = "tracker_modal_tabs",
