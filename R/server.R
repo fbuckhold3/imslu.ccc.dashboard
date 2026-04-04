@@ -2070,9 +2070,11 @@ create_server <- function(initial_data) {
     scores <- suppressWarnings(as.numeric(sapply(present, function(f) row[[f]][1])))
     scores[is.na(scores)] <- 0
 
-    # Close the polygon
-    r_vals  <- c(scores, scores[1])
-    th_vals <- c(labels, labels[1])
+    # Close the polygon — all three vectors must be the same length
+    text_vals <- paste0(labels, ": ", scores)
+    r_vals    <- c(scores,     scores[1])
+    th_vals   <- c(labels,     labels[1])
+    text_vals <- c(text_vals,  text_vals[1])
 
     period_note <- if (!is.null(res$period) && res$period != "—")
       paste0("Period: ", res$period) else ""
@@ -2088,7 +2090,7 @@ create_server <- function(initial_data) {
       marker    = list(color = "#003087", size = 7,
                        line = list(color = "#ffffff", width = 1.5)),
       name      = "Score",
-      text      = paste0(labels, ": ", scores),
+      text      = text_vals,
       hoverinfo = "text"
     ) %>%
       plotly::layout(
