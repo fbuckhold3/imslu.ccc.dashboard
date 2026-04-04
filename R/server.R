@@ -2118,6 +2118,8 @@ create_server <- function(initial_data) {
         margin        = list(l = 40, r = 40, t = 30, b = 50)
       )
   })
+  # Pre-render even when modal is not open so chart appears instantly on click
+  outputOptions(output, "adhoc_radar_plot", suspendWhenHidden = FALSE)
 
   # Ad Hoc Action Data Table
   output$adhoc_action_data_table <- DT::renderDT({

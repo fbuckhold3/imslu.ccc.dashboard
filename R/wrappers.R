@@ -834,15 +834,29 @@ get_action_data_table <- function(rdm_data, record_id, concerns_only = TRUE) {
     action_labels <- get_checkbox_labels("ccc_action")
     status_labels <- get_checkbox_labels("ccc_action_status")
 
+    # Combine interim notes + follow-up issues into one Notes column
+    interim_val  <- if ("ccc_interim"          %in% names(row)) trimws(as.character(row$ccc_interim[1]))          else ""
+    followup_val <- if ("ccc_issues_follow_up" %in% names(row)) trimws(as.character(row$ccc_issues_follow_up[1])) else ""
+    interim_val  <- if (is.na(interim_val)  || interim_val  == "NA") "" else interim_val
+    followup_val <- if (is.na(followup_val) || followup_val == "NA") "" else followup_val
+    notes_val <- paste(
+      c(if (nchar(interim_val)  > 0) paste0("Interim: ",   interim_val),
+        if (nchar(followup_val) > 0) paste0("Follow-up: ", followup_val)),
+      collapse = "\n"
+    )
+
+    type_display <- if ("ccc_rev_type" %in% names(row) &&
+                        !is.na(row$ccc_rev_type[1]) && row$ccc_rev_type[1] == "2")
+                      "Interim" else "Scheduled"
+
     result_list[[i]] <- data.frame(
-      Date = if ("ccc_date" %in% names(row)) as.character(row$ccc_date) else "",
-      Session = if ("ccc_session" %in% names(row)) as.character(row$ccc_session) else "",
-      Type = if ("ccc_rev_type" %in% names(row)) as.character(row$ccc_rev_type) else "",
-      Issues = if ("ccc_issues_follow_up" %in% names(row)) as.character(row$ccc_issues_follow_up) else "",
-      Comments = if ("ccc_comments" %in% names(row)) as.character(row$ccc_comments) else "",
+      Date       = if ("ccc_date"    %in% names(row)) as.character(row$ccc_date[1])    else "",
+      Session    = if ("ccc_session" %in% names(row)) as.character(row$ccc_session[1]) else "",
+      Type       = type_display,
+      Notes      = notes_val,
       Competency = competency_labels,
-      Action = action_labels,
-      Status = status_labels,
+      Action     = action_labels,
+      Status     = status_labels,
       stringsAsFactors = FALSE
     )
   }
