@@ -1879,7 +1879,6 @@ create_server <- function(initial_data) {
       tags$tbody(
         info_row(coach_label,        ctx$coach_summary),
         info_row("Coach ILP / Goals", ctx$coach_ilp),
-        info_row(ccc_label,          ctx$ccc_comments),
         info_row("CCC ILP",           ctx$ccc_ilp),
         if (ctx$ccc_concern == "Yes" || nchar(ctx$ccc_issues) > 0)
           tags$tr(
@@ -1896,7 +1895,7 @@ create_server <- function(initial_data) {
       )
     )
 
-    has_any_context <- any(nchar(c(ctx$coach_summary, ctx$coach_ilp, ctx$ccc_comments,
+    has_any_context <- any(nchar(c(ctx$coach_summary, ctx$coach_ilp,
                                    ctx$ccc_ilp, ctx$ccc_issues, ctx$last_concern_notes)) > 0) ||
                        ctx$ccc_concern == "Yes"
 
@@ -2031,14 +2030,6 @@ create_server <- function(initial_data) {
     status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
 
     tagList(
-      textAreaInput(
-        "adhoc_ccc_comments",
-        "CCC Comments:",
-        value = "",
-        rows = 3,
-        width = "100%",
-        placeholder = "Describe the concerns..."
-      ),
       checkboxGroupInput(
         "adhoc_ccc_competency",
         "Competency Areas:",
@@ -2107,7 +2098,7 @@ create_server <- function(initial_data) {
       ccc_mile_notes = "",
       ccc_issues_follow_up = if (!is.null(input$adhoc_ccc_issues_follow_up) && nchar(trimws(input$adhoc_ccc_issues_follow_up)) > 0) as.character(input$adhoc_ccc_issues_follow_up) else "",
       ccc_concern = if (!is.null(input$adhoc_ccc_concern)) as.character(input$adhoc_ccc_concern) else "0",
-      ccc_comments = if (!is.null(input$adhoc_ccc_comments) && nchar(trimws(input$adhoc_ccc_comments)) > 0) as.character(input$adhoc_ccc_comments) else "",
+      ccc_comments = "",
       ccc_review_complete = "2",  # Complete status
       stringsAsFactors = FALSE
     )
@@ -2183,7 +2174,6 @@ create_server <- function(initial_data) {
         updateRadioButtons(session, "adhoc_ccc_issues_yn", selected = "0")
         updateTextAreaInput(session, "adhoc_ccc_issues_follow_up", value = "")
         updateRadioButtons(session, "adhoc_ccc_concern", selected = "0")
-        updateTextAreaInput(session, "adhoc_ccc_comments", value = "")
 
         showNotification(
           "Form cleared. You can now review another resident.",
