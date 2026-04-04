@@ -71,13 +71,22 @@ create_server <- function(initial_data) {
     residents <- get_resident_list(app_data())
 
     if (nrow(residents) > 0) {
-      # Ad hoc resident selector
-      choices <- setNames(residents$record_id, residents$full_name)
+      # Build named vector: displayed label = full_name, value = record_id
+      choices <- setNames(
+        as.character(residents$record_id),
+        residents$full_name
+      )
+      # Drop any rows with missing names
+      choices <- choices[!is.na(names(choices)) & nchar(trimws(names(choices))) > 0]
+      choices <- choices[order(names(choices))]   # alphabetical
+
+      # server = FALSE: all choices sent to browser at once — search works
+      # instantly and reliably for rosters up to ~500 residents
       updateSelectizeInput(
         session,
         "adhoc_resident",
         choices = choices,
-        server = TRUE
+        server  = FALSE
       )
     }
   })
