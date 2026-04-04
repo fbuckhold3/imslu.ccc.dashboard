@@ -13,6 +13,12 @@ create_server <- function(initial_data) {
     authenticated <- reactiveVal(FALSE)
     filtered_review_table <- reactiveVal(NULL)
 
+    # Ad hoc milestone modal data
+    adhoc_prog_miles  <- reactiveVal(NULL)
+    adhoc_self_miles  <- reactiveVal(NULL)
+    adhoc_acgme_miles <- reactiveVal(NULL)
+    adhoc_radar_type  <- reactiveVal(NULL)
+
     # Filter reactive values
     filter_completion <- reactiveVal("all")
     filter_pgy <- reactiveVal("all")
@@ -1830,61 +1836,29 @@ create_server <- function(initial_data) {
     self  <- safe_recent("milestone_selfevaluation_c33c",  "prog_mile_period_self")
     acgme <- safe_recent("acgme_miles",                    "acgme_mile_period")
 
-    # Build a compact score table from one row of milestone data
-    milestone_score_table <- function(res) {
+    # Cache for radar modal
+    adhoc_prog_miles(prog)
+    adhoc_self_miles(self)
+    adhoc_acgme_miles(acgme)
+
+    # Small button card content — click to open radar modal
+    milestone_btn <- function(btn_id, res) {
       if (nrow(res$df) == 0) {
-        return(tags$p(class = "text-muted", style = "font-style:italic; font-size:0.9rem;",
-                      icon("info-circle"), " No data"))
-      }
-      row <- res$df
-
-      # All milestone fields in standard order
-      ms_fields <- c(
-        "rep_pc1","rep_pc2","rep_pc3","rep_pc4","rep_pc5","rep_pc6",
-        "rep_mk1","rep_mk2","rep_mk3",
-        "rep_sbp1","rep_sbp2","rep_sbp3",
-        "rep_pbl1","rep_pbl2",
-        "rep_prof1","rep_prof2","rep_prof3","rep_prof4",
-        "rep_ics1","rep_ics2","rep_ics3"
-      )
-      present_fields <- ms_fields[ms_fields %in% names(row)]
-      if (length(present_fields) == 0) {
-        return(tags$p(class = "text-muted", style = "font-style:italic; font-size:0.9rem;",
-                      "No competency scores found."))
-      }
-
-      period_label <- if (res$period != "—")
-        tags$small(class = "text-muted d-block mb-2", icon("calendar"), " Period: ", res$period)
-      else NULL
-
-      score_rows <- lapply(present_fields, function(f) {
-        lbl   <- map_field_to_display(f)
-        val   <- as.character(row[[f]][1])
-        score <- suppressWarnings(as.numeric(val))
-        # Color band: 1-3 red, 4-5 yellow, 6-9 green
-        badge_class <- if (!is.na(score) && score >= 6) "badge bg-success"
-                       else if (!is.na(score) && score >= 4) "badge bg-warning text-dark"
-                       else if (!is.na(score)) "badge bg-danger"
-                       else "badge bg-secondary"
-        score_str <- if (is.na(score) || val == "" || val == "NA") "—" else val
-        tags$tr(
-          tags$td(tags$strong(lbl),
-                  style = "font-size:0.9rem; padding:3px 8px; width:55px;"),
-          tags$td(tags$span(class = badge_class,
-                            style = "font-size:0.85rem; min-width:28px; text-align:center;",
-                            score_str),
-                  style = "padding:3px 8px;")
+        tags$span(class = "text-muted", style = "font-size:0.85rem;",
+                  icon("circle-xmark"), " No data")
+      } else {
+        tagList(
+          if (res$period != "—")
+            tags$small(class = "text-muted d-block mb-2",
+                       icon("calendar"), " ", res$period)
+          else NULL,
+          actionButton(
+            btn_id, "View Radar",
+            class = "btn-sm btn-outline-primary",
+            icon  = icon("chart-area")
+          )
         )
-      })
-
-      tagList(
-        period_label,
-        tags$table(
-          class = "table table-sm table-borderless mb-0",
-          style = "width:auto;",
-          tags$tbody(score_rows)
-        )
-      )
+      }
     }
 
     # ------------------------------------------------------------------
@@ -1959,13 +1933,13 @@ create_server <- function(initial_data) {
              "Showing the latest available record regardless of review period."),
       fluidRow(
         column(width = 4,
-          gmed::gmed_card(title = "Program Milestones",  milestone_score_table(prog))
+          gmed::gmed_card(title = "Program Milestones",  milestone_btn("adhoc_prog_btn",  prog))
         ),
         column(width = 4,
-          gmed::gmed_card(title = "Self-Evaluation",     milestone_score_table(self))
+          gmed::gmed_card(title = "Self-Evaluation",     milestone_btn("adhoc_self_btn",  self))
         ),
         column(width = 4,
-          gmed::gmed_card(title = "ACGME Milestones",    milestone_score_table(acgme))
+          gmed::gmed_card(title = "ACGME Milestones",    milestone_btn("adhoc_acgme_btn", acgme))
         )
       ),
 
@@ -2041,6 +2015,108 @@ create_server <- function(initial_data) {
         icon  = icon("check")
       )
     )
+  })
+
+  # ===========================================================================
+  # AD HOC — Milestone radar buttons
+  # ===========================================================================
+  ms_fields_ordered <- c(
+    "rep_pc1","rep_pc2","rep_pc3","rep_pc4","rep_pc5","rep_pc6",
+    "rep_mk1","rep_mk2","rep_mk3",
+    "rep_sbp1","rep_sbp2","rep_sbp3",
+    "rep_pbl1","rep_pbl2",
+    "rep_prof1","rep_prof2","rep_prof3","rep_prof4",
+    "rep_ics1","rep_ics2","rep_ics3"
+  )
+
+  build_radar_modal <- function(res, title_str) {
+    showModal(modalDialog(
+      title = title_str,
+      plotly::plotlyOutput("adhoc_radar_plot", height = "420px"),
+      easyClose = TRUE,
+      footer     = modalButton("Close"),
+      size       = "m"
+    ))
+  }
+
+  observeEvent(input$adhoc_prog_btn, {
+    adhoc_radar_type("prog")
+    build_radar_modal(adhoc_prog_miles(), "Program Milestones — Radar")
+  })
+  observeEvent(input$adhoc_self_btn, {
+    adhoc_radar_type("self")
+    build_radar_modal(adhoc_self_miles(), "Self-Evaluation — Radar")
+  })
+  observeEvent(input$adhoc_acgme_btn, {
+    adhoc_radar_type("acgme")
+    build_radar_modal(adhoc_acgme_miles(), "ACGME Milestones — Radar")
+  })
+
+  output$adhoc_radar_plot <- plotly::renderPlotly({
+    mtype <- adhoc_radar_type()
+    req(mtype)
+    res <- switch(mtype,
+      "prog"  = adhoc_prog_miles(),
+      "self"  = adhoc_self_miles(),
+      "acgme" = adhoc_acgme_miles()
+    )
+    req(!is.null(res), nrow(res$df) > 0)
+
+    row     <- res$df
+    present <- ms_fields_ordered[ms_fields_ordered %in% names(row)]
+    req(length(present) > 0)
+
+    labels <- sapply(present, map_field_to_display)
+    scores <- suppressWarnings(as.numeric(sapply(present, function(f) row[[f]][1])))
+    scores[is.na(scores)] <- 0
+
+    # Close the polygon
+    r_vals  <- c(scores, scores[1])
+    th_vals <- c(labels, labels[1])
+
+    period_note <- if (!is.null(res$period) && res$period != "—")
+      paste0("Period: ", res$period) else ""
+
+    plotly::plot_ly(
+      type      = "scatterpolar",
+      r         = r_vals,
+      theta     = th_vals,
+      fill      = "toself",
+      fillcolor = "rgba(0,48,135,0.28)",
+      line      = list(color = "#003087", width = 2.5),
+      mode      = "lines+markers",
+      marker    = list(color = "#003087", size = 7,
+                       line = list(color = "#ffffff", width = 1.5)),
+      name      = "Score",
+      text      = paste0(labels, ": ", scores),
+      hoverinfo = "text"
+    ) %>%
+      plotly::layout(
+        annotations = list(list(
+          text      = period_note,
+          x         = 0.5, y = -0.08,
+          xref      = "paper", yref = "paper",
+          showarrow = FALSE,
+          font      = list(size = 13, color = "#6c757d")
+        )),
+        polar = list(
+          bgcolor    = "#ffffff",
+          radialaxis = list(
+            visible  = TRUE,
+            range    = c(0, 9),
+            dtick    = 1,
+            tickfont = list(size = 12, color = "#2d3748"),
+            gridcolor = "#c7d2da"
+          ),
+          angularaxis = list(
+            tickfont = list(size = 13, color = "#1a202c")
+          )
+        ),
+        paper_bgcolor = "#ffffff",
+        showlegend    = FALSE,
+        font          = list(family = "Inter, sans-serif"),
+        margin        = list(l = 40, r = 40, t = 30, b = 50)
+      )
   })
 
   # Ad Hoc Action Data Table
