@@ -2001,7 +2001,7 @@ create_server <- function(initial_data) {
   output$adhoc_action_data_table <- DT::renderDT({
     req(input$adhoc_resident)
 
-    action_data <- get_action_data_table(app_data(), input$adhoc_resident)
+    action_data <- get_action_data_table(app_data(), input$adhoc_resident, concerns_only = FALSE)
 
     DT::datatable(
       action_data,

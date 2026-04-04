@@ -698,7 +698,7 @@ get_ccc_review_all <- function(rdm_data) {
 #' @param rdm_data List containing all data
 #' @param record_id Resident record ID
 #' @return Data frame with all action items
-get_action_data_table <- function(rdm_data, record_id) {
+get_action_data_table <- function(rdm_data, record_id, concerns_only = TRUE) {
 
   if (is.null(rdm_data$all_forms$ccc_review)) {
     return(data.frame(
@@ -752,19 +752,23 @@ get_action_data_table <- function(rdm_data, record_id) {
     ))
   }
 
-  # Filter for rows with concerns or issues
-  if (has_concern && has_issues) {
-    action_data <- ccc_data %>%
-      filter(
-        (!is.na(ccc_concern) & ccc_concern == "1") |
-        (!is.na(ccc_issues_follow_up) & nchar(trimws(ccc_issues_follow_up)) > 0)
-      )
-  } else if (has_concern) {
-    action_data <- ccc_data %>%
-      filter(!is.na(ccc_concern) & ccc_concern == "1")
+  # Filter for rows with concerns or issues (skip if concerns_only = FALSE)
+  if (concerns_only) {
+    if (has_concern && has_issues) {
+      action_data <- ccc_data %>%
+        filter(
+          (!is.na(ccc_concern) & ccc_concern == "1") |
+          (!is.na(ccc_issues_follow_up) & nchar(trimws(ccc_issues_follow_up)) > 0)
+        )
+    } else if (has_concern) {
+      action_data <- ccc_data %>%
+        filter(!is.na(ccc_concern) & ccc_concern == "1")
+    } else {
+      action_data <- ccc_data %>%
+        filter(!is.na(ccc_issues_follow_up) & nchar(trimws(ccc_issues_follow_up)) > 0)
+    }
   } else {
-    action_data <- ccc_data %>%
-      filter(!is.na(ccc_issues_follow_up) & nchar(trimws(ccc_issues_follow_up)) > 0)
+    action_data <- ccc_data
   }
 
   if (nrow(action_data) == 0) {
