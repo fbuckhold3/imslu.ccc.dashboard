@@ -2006,10 +2006,13 @@ create_server <- function(initial_data) {
     DT::datatable(
       action_data,
       options = list(
-        pageLength = 5,
-        dom = 't',
-        ordering = TRUE,
-        searching = FALSE
+        pageLength   = nrow(action_data),
+        dom          = 't',
+        ordering     = TRUE,
+        searching    = FALSE,
+        scrollY      = "260px",
+        scrollCollapse = TRUE,
+        paging       = FALSE
       ),
       rownames = FALSE,
       selection = 'none'
@@ -3008,9 +3011,9 @@ create_server <- function(initial_data) {
         boxpoints = box_pts,
         jitter    = 0.35,
         pointpos  = 0,
-        marker    = list(color = "rgba(0,48,135,0.55)", size = 5),
-        line      = list(color = "#003087"),
-        fillcolor = "rgba(0,48,135,0.15)",
+        marker    = list(color = "rgba(0,48,135,0.80)", size = 5),
+        line      = list(color = "#003087", width = 2),
+        fillcolor = "rgba(0,48,135,0.38)",
         name      = "All residents"
       )
     }
@@ -3020,34 +3023,43 @@ create_server <- function(initial_data) {
       plotly::add_lines(
         x       = period_order,
         y       = rep(4, length(period_order)),
-        line    = list(color = "#dc3545", width = 2, dash = "dash"),
+        line    = list(color = "#dc3545", width = 2.5, dash = "dash"),
         name    = "Level 4 Target",
         inherit = FALSE,
         showlegend = TRUE
       ) %>%
       plotly::layout(
-        title  = list(text = plot_title, font = list(size = 15)),
+        title  = list(text = plot_title, font = list(size = 16, color = "#1a202c")),
         xaxis  = list(
-          title         = "Review Period",
+          title         = list(text = "Review Period", font = list(size = 14, color = "#2d3748")),
           categoryorder = "array",
-          categoryarray = period_order
+          categoryarray = period_order,
+          tickfont      = list(size = 13, color = "#2d3748"),
+          gridcolor     = "#e2e8f0",
+          linecolor     = "#cbd5e0",
+          linewidth     = 1
         ),
         yaxis  = list(
-          title = "Milestone Score (1–9)",
-          range = c(0.5, 9.5),
-          dtick = 1
+          title     = list(text = "Milestone Score (1–9)", font = list(size = 14, color = "#2d3748")),
+          range     = c(0.5, 9.5),
+          dtick     = 1,
+          tickfont  = list(size = 13, color = "#2d3748"),
+          gridcolor = "#e2e8f0",
+          linecolor = "#cbd5e0",
+          linewidth = 1
         ),
         legend = list(
           orientation = "h",
           yanchor     = "bottom",
           y           = 1.02,
           xanchor     = "right",
-          x           = 1
+          x           = 1,
+          font        = list(size = 13)
         ),
-        plot_bgcolor  = "#fafafa",
+        plot_bgcolor  = "#ffffff",
         paper_bgcolor = "#ffffff",
-        font          = list(family = "Inter, sans-serif", size = 15),
-        margin        = list(l = 60, r = 20, t = 50, b = 80)
+        font          = list(family = "Inter, sans-serif", size = 14),
+        margin        = list(l = 65, r = 20, t = 55, b = 80)
       )
 
     p
@@ -3140,8 +3152,8 @@ create_server <- function(initial_data) {
           x         = x_prog,
           ymin      = prog_summ$q25,
           ymax      = prog_summ$q75,
-          fillcolor = "rgba(107,114,128,0.13)",
-          line      = list(color = "transparent"),
+          fillcolor = "rgba(100,116,139,0.28)",
+          line      = list(color = "rgba(100,116,139,0.5)", width = 1),
           name      = paste0("Program IQR",
                              if (!is.null(cat_filter) && cat_filter != "All")
                                paste0(" (", cat_filter, " avg)") else ""),
@@ -3153,7 +3165,7 @@ create_server <- function(initial_data) {
           y         = prog_summ$med,
           type      = "scatter",
           mode      = "lines",
-          line      = list(color = "#9ca3af", width = 1.5, dash = "dot"),
+          line      = list(color = "#475569", width = 2.5, dash = "dot"),
           name      = "Program Median",
           text      = paste0("Period: ", x_prog,
                              "<br>Program Median: ", round(prog_summ$med, 2),
@@ -3181,9 +3193,9 @@ create_server <- function(initial_data) {
           type      = "scatter",
           mode      = "lines+markers",
           name      = label,
-          line      = list(color = col, width = 2.5),
-          marker    = list(color = col, size = 8,
-                           line = list(color = "#ffffff", width = 1.5)),
+          line      = list(color = col, width = 3),
+          marker    = list(color = col, size = 10,
+                           line = list(color = "#ffffff", width = 2)),
           text      = paste0(label,
                              "<br>Period: ", x_ms,
                              "<br>Score: ", ms_data$score),
@@ -3200,7 +3212,7 @@ create_server <- function(initial_data) {
           y         = rep(4, length(x_prog)),
           type      = "scatter",
           mode      = "lines",
-          line      = list(color = "#dc3545", width = 1.5, dash = "dash"),
+          line      = list(color = "#dc3545", width = 2.5, dash = "dash"),
           name      = "Level 4 Target",
           showlegend = TRUE,
           hoverinfo  = "skip"
@@ -3213,29 +3225,37 @@ create_server <- function(initial_data) {
     p %>% plotly::layout(
       title  = list(
         text = paste0(res_name, " — Milestone Trajectory", cat_label),
-        font = list(size = 15)
+        font = list(size = 16, color = "#1a202c")
       ),
       xaxis  = list(
-        title         = "Review Period",
+        title         = list(text = "Review Period", font = list(size = 14, color = "#2d3748")),
         categoryorder = "array",
-        categoryarray = period_order
+        categoryarray = period_order,
+        tickfont      = list(size = 13, color = "#2d3748"),
+        gridcolor     = "#e2e8f0",
+        linecolor     = "#cbd5e0",
+        linewidth     = 1
       ),
       yaxis  = list(
-        title = "Milestone Score (1–9)",
-        range = c(0.5, 9.5),
-        dtick = 1
+        title     = list(text = "Milestone Score (1–9)", font = list(size = 14, color = "#2d3748")),
+        range     = c(0.5, 9.5),
+        dtick     = 1,
+        tickfont  = list(size = 13, color = "#2d3748"),
+        gridcolor = "#e2e8f0",
+        linecolor = "#cbd5e0",
+        linewidth = 1
       ),
       legend = list(
         orientation = "v",
         x           = 1.02,
         y           = 1,
         xanchor     = "left",
-        font        = list(size = 13)
+        font        = list(size = 13, color = "#1a202c")
       ),
-      plot_bgcolor  = "#fafafa",
+      plot_bgcolor  = "#ffffff",
       paper_bgcolor = "#ffffff",
-      font          = list(family = "Inter, sans-serif", size = 12),
-      margin        = list(l = 60, r = 180, t = 60, b = 80)
+      font          = list(family = "Inter, sans-serif", size = 14),
+      margin        = list(l = 65, r = 190, t = 65, b = 80)
     )
   })
 
