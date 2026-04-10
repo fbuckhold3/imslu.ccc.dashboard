@@ -323,6 +323,52 @@ load_ccc_data <- function(
 }
 
 # ==============================================================================
+# TARGETED CCC REVIEW REFRESH
+# ==============================================================================
+
+#' Refresh only the ccc_review instrument in an existing app_data list
+#'
+#' Much faster than load_ccc_data() — fetches only the ccc_review repeating
+#' instrument and splices it into the existing data without re-downloading
+#' residents, milestones, s_eval, or any other form.
+#'
+#' @param current_data The existing app_data() reactive value (a list)
+#' @param redcap_url REDCap API URL
+#' @param rdm_token RDM REDCap token
+#' @return The same list with all_forms$ccc_review replaced by fresh data
+refresh_ccc_review <- function(
+  current_data,
+  redcap_url = REDCAP_CONFIG$url,
+  rdm_token  = REDCAP_CONFIG$rdm_token
+) {
+  result <- REDCapR::redcap_read_oneshot(
+    redcap_uri   = redcap_url,
+    token        = rdm_token,
+    forms        = "ccc_review",
+    raw_or_label = "raw",
+    verbose      = FALSE
+  )
+
+  if (!isTRUE(result$success)) {
+    stop("REDCap fetch of ccc_review failed: ", result$outcome_message)
+  }
+
+  # Filter archived residents using the same logic as load_ccc_data
+  fresh <- result$data
+  if (!is.null(current_data$residents) &&
+      "res_archive" %in% names(current_data$residents)) {
+    archived <- current_data$residents %>%
+      filter(!is.na(res_archive) & res_archive == "1") %>%
+      pull(record_id)
+    if (length(archived) > 0)
+      fresh <- fresh %>% filter(!(record_id %in% archived))
+  }
+
+  current_data$all_forms$ccc_review <- fresh
+  current_data
+}
+
+# ==============================================================================
 # FORM DATA ACCESS HELPER
 # ==============================================================================
 

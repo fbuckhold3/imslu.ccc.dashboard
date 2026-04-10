@@ -3836,11 +3836,12 @@ create_server <- function(initial_data) {
       removeModal()
       # Show a persistent "refreshing" notification, replace it once done
       refresh_id <- showNotification(
-        tagList(icon("rotate"), " Saving & refreshing data\u2026"),
+        tagList(icon("rotate"), " Refreshing\u2026"),
         type = "message", duration = NULL, closeButton = FALSE
       )
       tryCatch({
-        app_data(load_ccc_data())
+        # Fast path: re-fetch only the ccc_review instrument (~1s vs ~10s full reload)
+        app_data(refresh_ccc_review(app_data()))
         removeNotification(refresh_id)
         showNotification(
           tagList(icon("circle-check"), " Interim review saved."),
@@ -3848,8 +3849,17 @@ create_server <- function(initial_data) {
         )
       }, error = function(e) {
         removeNotification(refresh_id)
-        showNotification("Saved, but data refresh failed — please click Refresh Data.",
-                         type = "warning", duration = 6)
+        # Fall back to full reload if targeted refresh fails
+        tryCatch({
+          app_data(load_ccc_data())
+          showNotification(
+            tagList(icon("circle-check"), " Saved (full refresh)."),
+            type = "message", duration = 3
+          )
+        }, error = function(e2) {
+          showNotification("Saved, but data refresh failed — please click Refresh Data.",
+                           type = "warning", duration = 6)
+        })
       })
     } else {
       showNotification(paste("Save failed:", result$message), type = "error", duration = 10)
