@@ -3298,11 +3298,14 @@ create_server <- function(initial_data) {
     )
 
     # ── Badge helper ──────────────────────────────────────────────────────────
+    # pointer-events:none is critical: prevents the <span> from intercepting
+    # DT row-click events, which crashes the WebSocket when HTML is in the cell
     pill <- function(text, bg, fg = "#fff") {
       if (is.na(text) || nchar(trimws(text)) == 0) return("")
       paste0(
         '<span style="display:inline-block;padding:3px 11px;border-radius:20px;',
         'font-size:0.8rem;font-weight:600;white-space:nowrap;letter-spacing:0.01em;',
+        'pointer-events:none;',
         'background:', bg, ';color:', fg, ';">', text, '</span>'
       )
     }
