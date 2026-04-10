@@ -3290,6 +3290,10 @@ create_server <- function(initial_data) {
   # INTERIM REVIEWS — CCC Review table (one row per resident, most recent review)
   # ===========================================================================
 
+  # Store the exact tbl used to render the DT so the row-click observer can
+  # do a reliable record_id lookup (avoids index drift from independent sorts)
+  ccc_review_tbl_data <- reactiveVal(NULL)
+
   output$tracker_ccc_review_table <- DT::renderDT({
     tryCatch({
     all_reviews <- tryCatch(
@@ -3377,6 +3381,10 @@ create_server <- function(initial_data) {
              review_type, Status, Competency, Notes, `Follow-up`, Person) %>%
       arrange(Resident)
 
+    # Cache the exact data used for rendering so the row-click observer can
+    # do a direct record_id lookup by row index (independent of client sort)
+    ccc_review_tbl_data(tbl)
+
     # No HTML in cells — use formatStyle for all visual treatment
     # (escape=TRUE is safe, no JS serialization issues on row click)
     DT::datatable(
@@ -3455,23 +3463,23 @@ create_server <- function(initial_data) {
     tryCatch({
     idx <- input$tracker_ccc_review_table_rows_selected
     req(length(idx) > 0)
+    message("MODAL[1] row clicked idx=", idx)
 
-    # Snapshot once — avoids multiple reactive evaluations and R copy-on-modify overhead
-    dat <- app_data()
-
-    # Derive ordered resident list matching the table (all residents, sorted by name)
-    res_tbl <- dat$residents %>%
-      select(record_id, Resident = full_name) %>%
-      filter(!is.na(Resident) & nchar(trimws(Resident)) > 0) %>%
-      arrange(Resident)
-
-    if (idx > nrow(res_tbl)) return()
-    rid <- as.character(res_tbl$record_id[idx])
+    # Use the cached render data for a reliable record_id lookup
+    tbl_snap <- isolate(ccc_review_tbl_data())
+    req(!is.null(tbl_snap))
+    if (idx > nrow(tbl_snap)) { message("MODAL[1b] idx out of range, nrow=", nrow(tbl_snap)); return() }
+    rid <- as.character(tbl_snap$record_id[idx])
+    message("MODAL[2] rid=", rid)
     interim_edit_rid(rid)
+
+    # Snapshot app_data once for everything below
+    dat <- isolate(app_data())
 
     # ── Resident display name ─────────────────────────────────────────────────
     nm_val   <- dat$residents %>% filter(record_id == rid) %>% pull(full_name)
     res_name <- if (length(nm_val) > 0 && !is.na(nm_val[1])) nm_val[1] else rid
+    message("MODAL[3] res_name=", res_name)
 
     # ── History table: ALL records for this resident ──────────────────────────
     raw_all <- dat$all_forms$ccc_review
@@ -3489,6 +3497,7 @@ create_server <- function(initial_data) {
         arrange(desc(ccc_date))
     } else data.frame()
 
+    message("MODAL[4] past nrow=", nrow(past))
     history_table_ui <- if (nrow(past) == 0) {
       div(
         style = "color:#6c757d; font-size:0.85rem; padding:8px 0;",
@@ -3568,6 +3577,7 @@ create_server <- function(initial_data) {
       )
     }
 
+    message("MODAL[5] history_table_ui built")
     # ── Access code + dashboard link ─────────────────────────────────────────
     ac_val <- tryCatch({
       res_row <- dat$residents %>% filter(record_id == rid)
@@ -3625,6 +3635,7 @@ create_server <- function(initial_data) {
       )
     )
 
+    message("MODAL[6] dash_url built, calling abim_ui")
     abim_ui <- tryCatch({
       td <- dat$all_forms$test_data
       td_row <- if (!is.null(td)) td %>% filter(record_id == rid) else NULL
@@ -3711,6 +3722,7 @@ create_server <- function(initial_data) {
       div(style = "display:flex; gap:12px;", quick_links_ui)
     })
 
+    message("MODAL[7] abim_ui built, getting choices")
     # ── Choices from data dict ───────────────────────────────────────────────
     dd                 <- dat$data_dict
     action_choices     <- get_field_choices(dd, "ccc_action",        for_ui = TRUE)
@@ -3722,6 +3734,7 @@ create_server <- function(initial_data) {
     if (length(status_choices) == 0)
       status_choices <- c("Initiation" = "1", "Ongoing" = "2", "Resolved" = "3", "Recurring" = "4")
 
+    message("MODAL[8] calling showModal for ", res_name)
     showModal(modalDialog(
       title = div(
         style = "display:flex; align-items:center; gap:12px;",
@@ -3824,7 +3837,9 @@ create_server <- function(initial_data) {
       )
     ))
 
+    message("MODAL[9] showModal completed for ", res_name)
     }, error = function(e) {
+      message("MODAL[ERR] ", conditionMessage(e))
       showNotification(
         paste("Could not open review form:", conditionMessage(e)),
         type = "error", duration = 8
