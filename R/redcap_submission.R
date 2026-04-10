@@ -262,3 +262,80 @@ submit_new_tracker_issue <- function(
     list(success = FALSE, message = e$message)
   })
 }
+
+# ==============================================================================
+# FUNCTION 4: UPDATE EXISTING INTERIM RECORD
+# ==============================================================================
+
+#' Update an existing ccc_review record with interim review fields.
+#'
+#' Writes ccc_interim, ccc_fu_resp, ccc_issues_follow_up, ccc_concern, and
+#' ccc_action_status___1-4 back to REDCap for the specified repeating instance.
+#'
+#' @param redcap_url REDCap API URL
+#' @param redcap_token REDCap API token
+#' @param record_id Resident record ID
+#' @param instance_number Repeating instance to update (numeric or character)
+#' @param progress_notes ccc_interim text
+#' @param person_resp ccc_fu_resp text
+#' @param followup_notes ccc_issues_follow_up text
+#' @param concern "1" if concern, "0" otherwise
+#' @param status Character vector of selected status codes (e.g., c("1","3"))
+#' @return List with success (logical) and message (character)
+#' @export
+update_interim_record <- function(
+  redcap_url,
+  redcap_token,
+  record_id,
+  instance_number,
+  progress_notes = "",
+  ilp_comments   = "",
+  comments       = "",
+  person_resp    = "",
+  followup_notes = "",
+  concern        = "0",
+  status         = character(0),
+  action         = character(0),
+  competency     = character(0)
+) {
+  update_df <- data.frame(
+    record_id                = as.character(record_id),
+    redcap_repeat_instrument = "ccc_review",
+    redcap_repeat_instance   = as.character(instance_number),
+    ccc_interim              = as.character(progress_notes),
+    ccc_ilp                  = as.character(ilp_comments),
+    ccc_comments             = as.character(comments),
+    ccc_fu_resp              = as.character(person_resp),
+    ccc_issues_follow_up     = as.character(followup_notes),
+    ccc_concern              = as.character(concern),
+    ccc_action_status___1    = if ("1" %in% as.character(status)) "1" else "0",
+    ccc_action_status___2    = if ("2" %in% as.character(status)) "1" else "0",
+    ccc_action_status___3    = if ("3" %in% as.character(status)) "1" else "0",
+    ccc_action_status___4    = if ("4" %in% as.character(status)) "1" else "0",
+    stringsAsFactors = FALSE
+  )
+
+  # Action checkboxes 1-8
+  for (n in 1:8) {
+    update_df[[paste0("ccc_action___", n)]] <-
+      if (as.character(n) %in% as.character(action)) "1" else "0"
+  }
+
+  # Competency checkboxes 1-7
+  for (n in 1:7) {
+    update_df[[paste0("ccc_competency___", n)]] <-
+      if (as.character(n) %in% as.character(competency)) "1" else "0"
+  }
+
+  tryCatch({
+    result <- REDCapR::redcap_write(
+      ds_to_write           = update_df,
+      redcap_uri            = redcap_url,
+      token                 = redcap_token,
+      overwrite_with_blanks = TRUE
+    )
+    list(success = result$success, message = result$outcome_message)
+  }, error = function(e) {
+    list(success = FALSE, message = e$message)
+  })
+}

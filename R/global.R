@@ -449,5 +449,30 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
 }
 
 # ==============================================================================
+# NAVIGATION BLOCKS
+# ==============================================================================
+
+ccc_nav_blocks <- list(
+  list(
+    id    = "semiannual",
+    label = "Semi-Annual Reviews",
+    icon  = "calendar2-check-fill",
+    desc  = "Review table, filters & resident detail"
+  ),
+  list(
+    id    = "interim",
+    label = "Interim Reviews",
+    icon  = "person-exclamation-fill",
+    desc  = "Ad hoc discussions & follow-up tracking"
+  ),
+  list(
+    id    = "milestones",
+    label = "Milestone Overview",
+    icon  = "graph-up-arrow",
+    desc  = "Program trends & individual trajectories"
+  )
+)
+
+# ==============================================================================
 # APPLICATION INITIALIZED
 # ==============================================================================
