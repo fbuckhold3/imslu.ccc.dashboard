@@ -3352,12 +3352,6 @@ create_server <- function(initial_data) {
             paste0(Type, " \u00b7 ", Session),
           TRUE ~ Type
         ),
-        # Hidden column for styling — just "Interim" or "Scheduled" (no session suffix)
-        review_type = dplyr::case_when(
-          grepl("Interim",   Type, ignore.case = TRUE) ~ "Interim",
-          grepl("Scheduled", Type, ignore.case = TRUE) ~ "Scheduled",
-          TRUE ~ ""
-        ),
         # Notes: ccc_interim if last was Interim, ccc_ilp if Scheduled
         Notes = mapply(function(type, interim, ilp) {
           raw <- if (!is.na(type) && grepl("Interim", type, ignore.case = TRUE)) interim else ilp
@@ -3378,7 +3372,7 @@ create_server <- function(initial_data) {
         }, character(1))
       ) %>%
       select(record_id, Resident, PGY, `Last Review Date`, `Last Review`,
-             review_type, Status, Competency, Notes, `Follow-up`, Person) %>%
+             Status, Competency, Notes, `Follow-up`, Person) %>%
       arrange(Resident)
 
     # Cache the exact data used for rendering so the row-click observer can
@@ -3404,12 +3398,11 @@ create_server <- function(initial_data) {
           list(width = "55px",  targets = 2),   # PGY
           list(width = "105px", targets = 3),   # Last Review Date
           list(width = "165px", targets = 4),   # Last Review
-          list(visible = FALSE, targets = 5),   # review_type (hidden, used for styling)
-          list(width = "110px", targets = 6),   # Status
-          list(width = "160px", targets = 7),   # Competency
-          list(width = "220px", targets = 8),   # Notes
-          list(width = "220px", targets = 9),   # Follow-up
-          list(width = "115px", targets = 10),  # Person
+          list(width = "110px", targets = 5),   # Status
+          list(width = "160px", targets = 6),   # Competency
+          list(width = "220px", targets = 7),   # Notes
+          list(width = "220px", targets = 8),   # Follow-up
+          list(width = "115px", targets = 9),   # Person
           list(className = "dt-body-left", targets = "_all")
         )
       )
@@ -3419,11 +3412,7 @@ create_server <- function(initial_data) {
       DT::formatStyle("Last Review Date",
         fontWeight = "500", fontSize = "0.97rem", color = "#2d3748") %>%
       DT::formatStyle("Last Review",
-        valueColumns = "review_type",
-        color = DT::styleEqual(
-          c("Interim", "Scheduled", ""), c("#6f42c1", "#6c757d", "#2d3748")
-        ),
-        fontWeight = "600") %>%
+        fontWeight = "600", color = "#2d3748") %>%
       DT::formatStyle("Status",
         backgroundColor = DT::styleEqual(
           c("Initiation", "Ongoing",  "Resolved", "Recurring"),
@@ -3846,6 +3835,14 @@ create_server <- function(initial_data) {
       )
     }) # end tryCatch
   })
+
+  # ── JS error logger — pipes browser errors into Posit Connect logs ───────────
+  observeEvent(input$js_error_log, {
+    err <- input$js_error_log
+    message(sprintf("JS_ERROR: %s  [%s:%s:%s]",
+                    err$message, err$source, err$line, err$col))
+    if (nchar(err$stack) > 0) message("JS_STACK: ", err$stack)
+  }, ignoreInit = TRUE)
 
   # ── Save handler — always creates a new interim instance ─────────────────────
   observeEvent(input$interim_save_btn, {
