@@ -3290,25 +3290,12 @@ create_server <- function(initial_data) {
   # INTERIM REVIEWS — CCC Review table (one row per resident, most recent review)
   # ===========================================================================
 
-  output$tracker_ccc_review_table <- DT::renderDT(server = FALSE, {
+  output$tracker_ccc_review_table <- DT::renderDT({
     tryCatch({
     all_reviews <- tryCatch(
       get_ccc_review_all(app_data()),
       error = function(e) { warning("get_ccc_review_all failed: ", e$message); data.frame() }
     )
-
-    # ── Badge helper ──────────────────────────────────────────────────────────
-    # pointer-events:none is critical: prevents the <span> from intercepting
-    # DT row-click events, which crashes the WebSocket when HTML is in the cell
-    pill <- function(text, bg, fg = "#fff") {
-      if (is.na(text) || nchar(trimws(text)) == 0) return("")
-      paste0(
-        '<span style="display:inline-block;padding:3px 11px;border-radius:20px;',
-        'font-size:0.8rem;font-weight:600;white-space:nowrap;letter-spacing:0.01em;',
-        'pointer-events:none;',
-        'background:', bg, ';color:', fg, ';">', text, '</span>'
-      )
-    }
 
     trunc80 <- function(x) {
       s <- trimws(as.character(x))
@@ -3361,6 +3348,12 @@ create_server <- function(initial_data) {
             paste0(Type, " \u00b7 ", Session),
           TRUE ~ Type
         ),
+        # Hidden column for styling — just "Interim" or "Scheduled" (no session suffix)
+        review_type = dplyr::case_when(
+          grepl("Interim",   Type, ignore.case = TRUE) ~ "Interim",
+          grepl("Scheduled", Type, ignore.case = TRUE) ~ "Scheduled",
+          TRUE ~ ""
+        ),
         # Notes: ccc_interim if last was Interim, ccc_ilp if Scheduled
         Notes = mapply(function(type, interim, ilp) {
           raw <- if (!is.na(type) && grepl("Interim", type, ignore.case = TRUE)) interim else ilp
@@ -3381,32 +3374,16 @@ create_server <- function(initial_data) {
         }, character(1))
       ) %>%
       select(record_id, Resident, PGY, `Last Review Date`, `Last Review`,
-             Status, Competency, Notes, `Follow-up`, Person) %>%
+             review_type, Status, Competency, Notes, `Follow-up`, Person) %>%
       arrange(Resident)
 
-    # Badge: Last Review
-    tbl$`Last Review` <- vapply(tbl$`Last Review`, function(t) {
-      if (nchar(trimws(t)) == 0) return("")
-      if (grepl("Interim", t)) pill(t, "#6f42c1") else pill(t, "#6c757d")
-    }, character(1))
-
-    # Badge: Status
-    tbl$Status <- vapply(tbl$Status, function(s) {
-      if (is.na(s) || nchar(trimws(s)) == 0) return("")
-      switch(trimws(s),
-        "Initiation" = pill(s, "#fff3cd", "#7a5c00"),
-        "Ongoing"    = pill(s, "#cff4fc", "#0a4a5e"),
-        "Resolved"   = pill(s, "#d1e7dd", "#0f5132"),
-        "Recurring"  = pill(s, "#f8d7da", "#842029"),
-        pill(s, "#e9ecef", "#495057")
-      )
-    }, character(1))
-
+    # No HTML in cells — use formatStyle for all visual treatment
+    # (escape=TRUE is safe, no JS serialization issues on row click)
     DT::datatable(
       tbl,
       selection = "single",
       rownames  = FALSE,
-      escape    = FALSE,
+      escape    = TRUE,
       class     = "cell-border",
       options   = list(
         paging  = FALSE,
@@ -3414,29 +3391,56 @@ create_server <- function(initial_data) {
         scrollX = TRUE,
         order   = list(list(1, "asc")),
         columnDefs = list(
-          list(visible = FALSE, targets = 0),                  # record_id
-          list(width = "170px", targets = 1),                  # Resident
-          list(width = "55px",  targets = 2),                  # PGY
-          list(width = "105px", targets = 3),                  # Last Review Date
-          list(width = "165px", targets = 4),                  # Last Review
-          list(width = "110px", targets = 5),                  # Status
-          list(width = "160px", targets = 6),                  # Competency
-          list(width = "220px", targets = 7),                  # Notes
-          list(width = "220px", targets = 8),                  # Follow-up
-          list(width = "115px", targets = 9),                  # Person
+          list(visible = FALSE, targets = 0),   # record_id
+          list(width = "170px", targets = 1),   # Resident
+          list(width = "55px",  targets = 2),   # PGY
+          list(width = "105px", targets = 3),   # Last Review Date
+          list(width = "165px", targets = 4),   # Last Review
+          list(visible = FALSE, targets = 5),   # review_type (hidden, used for styling)
+          list(width = "110px", targets = 6),   # Status
+          list(width = "160px", targets = 7),   # Competency
+          list(width = "220px", targets = 8),   # Notes
+          list(width = "220px", targets = 9),   # Follow-up
+          list(width = "115px", targets = 10),  # Person
           list(className = "dt-body-left", targets = "_all")
         )
       )
     ) %>%
-      DT::formatStyle("Resident",         fontWeight = "700", fontSize = "1.0rem") %>%
-      DT::formatStyle("Last Review Date", fontWeight = "500", fontSize = "0.97rem", color = "#2d3748") %>%
-      DT::formatStyle("Notes",            fontSize = "0.95rem", color = "#4a5568") %>%
-      DT::formatStyle("Follow-up",        fontSize = "0.95rem", color = "#4a5568") %>%
-      DT::formatStyle("Person",           fontSize = "0.95rem", color = "#4a5568") %>%
-      DT::formatStyle("Competency",       fontSize = "0.88rem", color = "#6f42c1", fontStyle = "italic") %>%
-      DT::formatStyle("PGY",              fontWeight = "600", fontSize = "0.95rem", color = "#0066a1")
+      DT::formatStyle("Resident",
+        fontWeight = "700", fontSize = "1.0rem") %>%
+      DT::formatStyle("Last Review Date",
+        fontWeight = "500", fontSize = "0.97rem", color = "#2d3748") %>%
+      DT::formatStyle("Last Review",
+        valueColumns = "review_type",
+        color = DT::styleEqual(
+          c("Interim", "Scheduled", ""), c("#6f42c1", "#6c757d", "#2d3748")
+        ),
+        fontWeight = "600") %>%
+      DT::formatStyle("Status",
+        backgroundColor = DT::styleEqual(
+          c("Initiation", "Ongoing",  "Resolved", "Recurring"),
+          c("#fff3cd",    "#cff4fc",  "#d1e7dd",  "#f8d7da"),
+          default = ""
+        ),
+        color = DT::styleEqual(
+          c("Initiation", "Ongoing",  "Resolved", "Recurring"),
+          c("#7a5c00",    "#0a4a5e",  "#0f5132",  "#842029"),
+          default = "#495057"
+        ),
+        fontWeight = "600",
+        borderRadius = "20px",
+        padding = "3px 8px") %>%
+      DT::formatStyle("Notes",
+        fontSize = "0.95rem", color = "#4a5568") %>%
+      DT::formatStyle("Follow-up",
+        fontSize = "0.95rem", color = "#4a5568") %>%
+      DT::formatStyle("Person",
+        fontSize = "0.95rem", color = "#4a5568") %>%
+      DT::formatStyle("Competency",
+        fontSize = "0.88rem", color = "#6f42c1", fontStyle = "italic") %>%
+      DT::formatStyle("PGY",
+        fontWeight = "600", fontSize = "0.95rem", color = "#0066a1")
     }, error = function(e) {
-      message("DIAG renderDT ERROR: ", e$message)
       DT::datatable(data.frame(Error = paste("Table error:", e$message)))
     })
   })
