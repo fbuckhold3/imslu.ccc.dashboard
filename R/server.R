@@ -3854,9 +3854,15 @@ create_server <- function(initial_data) {
   }, ignoreInit = TRUE)
 
   # ── Save handler — always creates a new interim instance ─────────────────────
+  # IMPORTANT: actionButton initialises to 0 when the modal is first rendered.
+  # req(... > 0) prevents this initialisation from triggering an accidental save.
   observeEvent(input$interim_save_btn, {
+    req(isTRUE(input$interim_save_btn > 0))   # only fire on actual user click
+
+    tryCatch({
     rid <- interim_edit_rid()
     req(!is.null(rid))
+    message("SAVE[1] saving for rid=", rid)
 
     action_needed <- isTRUE(input$interim_action_needed)
 
@@ -3871,6 +3877,7 @@ create_server <- function(initial_data) {
       person_resp  = if (action_needed) input$interim_person_resp  else NULL,
       notes        = if (action_needed) input$interim_followup_notes else NULL
     )
+    message("SAVE[2] result$success=", isTRUE(result$success))
 
     if (isTRUE(result$success)) {
       removeModal()
@@ -3904,6 +3911,10 @@ create_server <- function(initial_data) {
     } else {
       showNotification(paste("Save failed:", result$message), type = "error", duration = 10)
     }
+    }, error = function(e) {
+      message("SAVE[ERR] ", conditionMessage(e))
+      showNotification(paste("Save error:", conditionMessage(e)), type = "error", duration = 10)
+    })
   })
 
   # ===========================================================================
