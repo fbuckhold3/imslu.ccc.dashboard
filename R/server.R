@@ -3292,12 +3292,10 @@ create_server <- function(initial_data) {
 
   output$tracker_ccc_review_table <- DT::renderDT({
     tryCatch({
-    message("DIAG renderDT: starting")
     all_reviews <- tryCatch(
       get_ccc_review_all(app_data()),
       error = function(e) { warning("get_ccc_review_all failed: ", e$message); data.frame() }
     )
-    message("DIAG renderDT: got all_reviews rows=", if(is.null(all_reviews)) "NULL" else nrow(all_reviews))
 
     # ── Badge helper ──────────────────────────────────────────────────────────
     pill <- function(text, bg, fg = "#fff") {
@@ -3447,14 +3445,15 @@ create_server <- function(initial_data) {
   interim_edit_rid <- reactiveVal(NULL)
 
   observeEvent(input$tracker_ccc_review_table_rows_selected, {
-    message("DIAG click observer: fired idx=", input$tracker_ccc_review_table_rows_selected)
     tryCatch({
     idx <- input$tracker_ccc_review_table_rows_selected
     req(length(idx) > 0)
 
-    message("DIAG click observer: idx=", idx, " building res_tbl")
+    # Snapshot once — avoids multiple reactive evaluations and R copy-on-modify overhead
+    dat <- app_data()
+
     # Derive ordered resident list matching the table (all residents, sorted by name)
-    res_tbl <- app_data()$residents %>%
+    res_tbl <- dat$residents %>%
       select(record_id, Resident = full_name) %>%
       filter(!is.na(Resident) & nchar(trimws(Resident)) > 0) %>%
       arrange(Resident)
@@ -3464,11 +3463,11 @@ create_server <- function(initial_data) {
     interim_edit_rid(rid)
 
     # ── Resident display name ─────────────────────────────────────────────────
-    nm_val   <- app_data()$residents %>% filter(record_id == rid) %>% pull(full_name)
+    nm_val   <- dat$residents %>% filter(record_id == rid) %>% pull(full_name)
     res_name <- if (length(nm_val) > 0 && !is.na(nm_val[1])) nm_val[1] else rid
 
     # ── History table: ALL records for this resident ──────────────────────────
-    raw_all <- app_data()$all_forms$ccc_review
+    raw_all <- dat$all_forms$ccc_review
 
     hist_fields <- list(
       list("ccc_interim",          "Discussion Summary"),
@@ -3506,7 +3505,7 @@ create_server <- function(initial_data) {
 
       # Pre-build competency label map for history rows (code -> label)
       hist_comp_map <- tryCatch({
-        cs <- app_data()$data_dict %>%
+        cs <- dat$data_dict %>%
           filter(field_name == "ccc_competency") %>%
           pull(select_choices_or_calculations)
         if (length(cs) > 0 && !is.na(cs[1]) && nchar(cs[1]) > 0) {
@@ -3564,7 +3563,7 @@ create_server <- function(initial_data) {
 
     # ── Access code + dashboard link ─────────────────────────────────────────
     ac_val <- tryCatch({
-      res_row <- app_data()$residents %>% filter(record_id == rid)
+      res_row <- dat$residents %>% filter(record_id == rid)
       if ("access_code" %in% names(res_row) && nrow(res_row) > 0) {
         v <- res_row$access_code[1]
         if (!is.na(v) && nchar(trimws(v)) > 0) trimws(v) else ""
@@ -3620,7 +3619,7 @@ create_server <- function(initial_data) {
     )
 
     abim_ui <- tryCatch({
-      td <- app_data()$all_forms$test_data
+      td <- dat$all_forms$test_data
       td_row <- if (!is.null(td)) td %>% filter(record_id == rid) else NULL
       if (!is.null(td_row) && nrow(td_row) > 0) {
         pcts <- c(
@@ -3706,7 +3705,7 @@ create_server <- function(initial_data) {
     })
 
     # ── Choices from data dict ───────────────────────────────────────────────
-    dd                 <- app_data()$data_dict
+    dd                 <- dat$data_dict
     action_choices     <- get_field_choices(dd, "ccc_action",        for_ui = TRUE)
     competency_choices <- get_field_choices(dd, "ccc_competency",    for_ui = TRUE)
     status_choices     <- get_field_choices(dd, "ccc_action_status", for_ui = TRUE)
@@ -3716,8 +3715,6 @@ create_server <- function(initial_data) {
     if (length(status_choices) == 0)
       status_choices <- c("Initiation" = "1", "Ongoing" = "2", "Resolved" = "3", "Recurring" = "4")
 
-    # ── Modal (wider via inline CSS override) ────────────────────────────────
-    message("DIAG click observer: calling showModal for rid=", rid)
     showModal(modalDialog(
       title = div(
         style = "display:flex; align-items:center; gap:12px;",
@@ -3737,9 +3734,6 @@ create_server <- function(initial_data) {
                      icon = icon("floppy-disk"), class = "btn-primary"),
         modalButton("Cancel")
       ),
-
-      # Widen the modal beyond xl default
-      tags$style(HTML(".modal-xl { max-width: 1300px !important; }")),
 
       # ── History table ─────────────────────────────────────────────────────
       tags$p(
@@ -3823,20 +3817,7 @@ create_server <- function(initial_data) {
       )
     ))
 
-    # Reset all form inputs to blank for this resident (clears cached values from prior session)
-    shinyjs::delay(150, {
-      updateTextAreaInput(session,      "interim_progress_notes", value = "")
-      updateCheckboxInput(session,      "interim_action_needed",  value = FALSE)
-      updateCheckboxInput(session,      "interim_concern",        value = FALSE)
-      updateCheckboxGroupInput(session, "interim_status",         selected = character(0))
-      updateCheckboxGroupInput(session, "interim_action",         selected = character(0))
-      updateCheckboxGroupInput(session, "interim_competency",     selected = character(0))
-      updateTextAreaInput(session,      "interim_followup_notes", value = "")
-      updateTextInput(session,          "interim_person_resp",    value = "")
-    })
-    message("DIAG click observer: completed successfully")
     }, error = function(e) {
-      message("DIAG click observer ERROR: ", e$message)
       showNotification(
         paste("Could not open review form:", conditionMessage(e)),
         type = "error", duration = 8

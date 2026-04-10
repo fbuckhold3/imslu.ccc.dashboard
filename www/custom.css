@@ -415,6 +415,8 @@ table.dataTable.no-footer {
 /* --------------------------------------------------------------------------
    Modals
    -------------------------------------------------------------------------- */
+.modal-xl { max-width: 1300px !important; }
+
 .modal-content {
   border: none;
   border-radius: 1rem;
