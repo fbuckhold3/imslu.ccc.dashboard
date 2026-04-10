@@ -635,60 +635,61 @@ create_server <- function(initial_data) {
 
   # Observe coach button clicks
   observe({
-    current_period <- get_current_ccc_period()
-    review_table <- get_ccc_review_table(app_data(), current_period)
+    tryCatch({
+      current_period <- get_current_ccc_period()
+      review_table <- get_ccc_review_table(app_data(), current_period)
 
-    if (nrow(review_table) > 0) {
-      coaches <- unique(review_table$coach_name)
-      coaches <- coaches[!is.na(coaches) & coaches != ""]
+      if (nrow(review_table) > 0) {
+        coaches <- unique(review_table$coach_name)
+        coaches <- coaches[!is.na(coaches) & coaches != ""]
 
-      # All button
-      observeEvent(input$filter_coach_all, {
-        filter_coach("all")
-      }, ignoreInit = TRUE)
+        observeEvent(input$filter_coach_all, {
+          filter_coach("all")
+        }, ignoreInit = TRUE)
 
-      # Individual coach buttons
-      for (coach in coaches) {
-        local({
-          coach_name <- coach
-          btn_id <- paste0("filter_coach_", gsub("[^A-Za-z0-9]", "_", coach_name))
-          observeEvent(input[[btn_id]], {
-            filter_coach(coach_name)
-          }, ignoreInit = TRUE)
-        })
+        for (coach in coaches) {
+          local({
+            coach_name <- coach
+            btn_id <- paste0("filter_coach_", gsub("[^A-Za-z0-9]", "_", coach_name))
+            observeEvent(input[[btn_id]], {
+              filter_coach(coach_name)
+            }, ignoreInit = TRUE)
+          })
+        }
       }
-    }
+    }, error = function(e) warning("coach filter observe error: ", e$message))
   })
 
   # Observe second reviewer button clicks
   observe({
-    current_period <- get_current_ccc_period()
-    review_table <- get_ccc_review_table(app_data(), current_period)
+    tryCatch({
+      current_period <- get_current_ccc_period()
+      review_table <- get_ccc_review_table(app_data(), current_period)
 
-    if (nrow(review_table) > 0) {
-      second_revs <- unique(review_table$second_rev_name)
-      second_revs <- second_revs[!is.na(second_revs) & second_revs != ""]
+      if (nrow(review_table) > 0) {
+        second_revs <- unique(review_table$second_rev_name)
+        second_revs <- second_revs[!is.na(second_revs) & second_revs != ""]
 
-      # All button
-      observeEvent(input$filter_second_all, {
-        filter_second("all")
-      }, ignoreInit = TRUE)
+        observeEvent(input$filter_second_all, {
+          filter_second("all")
+        }, ignoreInit = TRUE)
 
-      # Individual second reviewer buttons
-      for (second_rev in second_revs) {
-        local({
-          second_rev_name <- second_rev
-          btn_id <- paste0("filter_second_", gsub("[^A-Za-z0-9]", "_", second_rev_name))
-          observeEvent(input[[btn_id]], {
-            filter_second(second_rev_name)
-          }, ignoreInit = TRUE)
-        })
+        for (second_rev in second_revs) {
+          local({
+            second_rev_name <- second_rev
+            btn_id <- paste0("filter_second_", gsub("[^A-Za-z0-9]", "_", second_rev_name))
+            observeEvent(input[[btn_id]], {
+              filter_second(second_rev_name)
+            }, ignoreInit = TRUE)
+          })
+        }
       }
-    }
+    }, error = function(e) warning("second filter observe error: ", e$message))
   })
 
   # Resident review table
   output$resident_review_table <- DT::renderDT({
+    tryCatch({
     # Use automatic period detection
     current_period <- get_current_ccc_period()
 
@@ -807,10 +808,15 @@ create_server <- function(initial_data) {
         'CCC',
         color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
       )
+    }, error = function(e) {
+      warning("resident_review_table render error: ", e$message)
+      DT::datatable(data.frame(Error = "Could not load review table."))
+    })
   })
 
   # Review statistics
   output$review_stats <- renderUI({
+    tryCatch({
     current_period <- get_current_ccc_period()
 
     review_table <- get_ccc_review_table(
@@ -872,6 +878,10 @@ create_server <- function(initial_data) {
         strong("CCC Reviews: "), ccc_completed, " / ", total
       )
     )
+    }, error = function(e) {
+      warning("review_stats render error: ", e$message)
+      div()
+    })
   })
 
   # Handle table row selection - show resident details

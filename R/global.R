@@ -139,6 +139,18 @@ load_ccc_data <- function(
     raw_or_label = "raw"  # Required for numeric fields and checkboxes
   )
 
+  # Ensure every form has redcap_repeat_instrument — some REDCap/gmed versions
+  # omit it when a project has only one repeating instrument per form
+  if (!is.null(rdm_data$all_forms)) {
+    for (fn in names(rdm_data$all_forms)) {
+      df <- rdm_data$all_forms[[fn]]
+      if (!is.null(df) && !"redcap_repeat_instrument" %in% names(df)) {
+        df$redcap_repeat_instrument <- fn
+        rdm_data$all_forms[[fn]] <- df
+      }
+    }
+  }
+
   # Filter archived residents if requested
   if (!include_archived && "residents" %in% names(rdm_data)) {
     if ("res_archive" %in% names(rdm_data$residents)) {
