@@ -410,14 +410,28 @@ create_server <- function(initial_data) {
 
     # ── HOME ───────────────────────────────────────────────────────────────────
     if (state == "home") {
-      return(
-        gmed::gmed_nav_blocks(
-          blocks   = ccc_nav_blocks,
-          title    = "CCC Dashboard",
-          subtitle = "Clinical Competency Committee \u00b7 SLU Internal Medicine",
-          input_id = "nav_block"
+      return(tagList(
+        div(class = "gmed-page-header",
+          tags$h2("CCC Dashboard"),
+          tags$p("Clinical Competency Committee \u00b7 SLU Internal Medicine")
+        ),
+        div(class = "gmed-nav-grid",
+          lapply(ccc_nav_blocks, function(b) {
+            div(
+              class   = "gmed-nav-block",
+              onclick = sprintf(
+                "Shiny.setInputValue('nav_block', '%s', {priority: 'event'})", b$id
+              ),
+              div(class = "gmed-nav-block-icon",
+                  tags$i(class = paste0("bi bi-", b$icon))),
+              div(
+                div(class = "gmed-nav-block-label", b$label),
+                div(class = "gmed-nav-block-desc",  b$desc)
+              )
+            )
+          })
         )
-      )
+      ))
     }
 
     # ── SECTION ────────────────────────────────────────────────────────────────
