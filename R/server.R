@@ -3290,7 +3290,7 @@ create_server <- function(initial_data) {
   # INTERIM REVIEWS — CCC Review table (one row per resident, most recent review)
   # ===========================================================================
 
-  output$tracker_ccc_review_table <- DT::renderDT({
+  output$tracker_ccc_review_table <- DT::renderDT(server = FALSE, {
     tryCatch({
     all_reviews <- tryCatch(
       get_ccc_review_all(app_data()),
@@ -3407,8 +3407,6 @@ create_server <- function(initial_data) {
       selection = "single",
       rownames  = FALSE,
       escape    = FALSE,
-      server    = FALSE,   # client-side: row selection never round-trips through R,
-                           # avoids WebSocket crash when HTML badge cells are selected
       class     = "cell-border",
       options   = list(
         paging  = FALSE,
