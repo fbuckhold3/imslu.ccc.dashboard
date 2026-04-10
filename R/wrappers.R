@@ -635,8 +635,26 @@ get_ccc_review_all <- function(rdm_data) {
   residents   <- rdm_data$residents
   id_to_name  <- setNames(as.character(residents$full_name), as.character(residents$record_id))
 
-  action_cols_present <- intersect(paste0("ccc_action___", 1:8), names(ccc_all))
-  status_cols_present <- intersect(paste0("ccc_action_status___", 1:4), names(ccc_all))
+  action_cols_present <- intersect(paste0("ccc_action___",          1:8), names(ccc_all))
+  status_cols_present <- intersect(paste0("ccc_action_status___",   1:4), names(ccc_all))
+  comp_cols_present   <- intersect(paste0("ccc_competency___",      1:7), names(ccc_all))
+
+  # Build competency label map directly from data dict (code -> label)
+  comp_label_map <- tryCatch({
+    cs <- rdm_data$data_dict %>%
+      filter(field_name == "ccc_competency") %>%
+      pull(select_choices_or_calculations)
+    if (length(cs) > 0 && !is.na(cs[1]) && nchar(cs[1]) > 0) {
+      pairs <- strsplit(cs[1], "\\|")[[1]]
+      m <- list()
+      for (p in pairs) {
+        parts <- strsplit(trimws(p), ",", fixed = TRUE)[[1]]
+        if (length(parts) >= 2)
+          m[[trimws(parts[1])]] <- trimws(paste(parts[-1], collapse = ","))
+      }
+      if (length(m) > 0) m else NULL
+    } else NULL
+  }, error = function(e) NULL)
 
   rows <- lapply(seq_len(nrow(ccc_all)), function(i) {
     row <- ccc_all[i, ]
@@ -661,27 +679,49 @@ get_ccc_review_all <- function(rdm_data) {
       if (!is.na(row[[sc]][1]) && row[[sc]][1] == "1")
         status_labels <- c(status_labels, CCC_STATUS_LABELS[n])
     }
-    status_str <- if (length(status_labels) > 0) paste(status_labels, collapse = ", ") else ""
+    status_str <- if (length(status_labels) > 0) tail(status_labels, 1) else ""
+
+    comp_labels <- c()
+    for (cc in comp_cols_present) {
+      n <- gsub("ccc_competency___", "", cc)
+      if (!is.na(row[[cc]][1]) && row[[cc]][1] == "1") {
+        lbl <- if (!is.null(comp_label_map) && !is.null(comp_label_map[[n]]))
+          comp_label_map[[n]] else n
+        comp_labels <- c(comp_labels, lbl)
+      }
+    }
+    competency_str <- if (length(comp_labels) > 0) paste(comp_labels, collapse = ", ") else ""
+
+    date_val <- if ("ccc_date" %in% names(row) && !is.na(row$ccc_date[1]) && nchar(trimws(as.character(row$ccc_date[1]))) > 0)
+      as.character(row$ccc_date[1]) else NA_character_
 
     data.frame(
-      record_id          = rid_str,
+      record_id          = trimws(rid_str),
+      instance           = if ("redcap_repeat_instance" %in% names(row)) as.character(row$redcap_repeat_instance[1]) else NA_character_,
       Resident           = if (!is.na(id_to_name[rid_str])) id_to_name[rid_str] else rid_str,
       Session            = if ("ccc_session"          %in% names(row)) as.character(row$ccc_session[1])          else "",
-      Date               = if ("ccc_date"             %in% names(row)) as.character(row$ccc_date[1])             else "",
+      Date               = date_val,
       Type               = type_label,
       Concern            = concern_label,
       Actions            = actions_str,
       Status             = status_str,
       `Follow-up Notes`  = if ("ccc_issues_follow_up" %in% names(row)) as.character(row$ccc_issues_follow_up[1]) else "",
+      `Progress Notes`   = if ("ccc_interim"          %in% names(row)) as.character(row$ccc_interim[1])          else "",
+      ILP                = if ("ccc_ilp"              %in% names(row)) as.character(row$ccc_ilp[1])              else "",
+      `Person Resp`      = if ("ccc_fu_resp"           %in% names(row)) as.character(row$ccc_fu_resp[1])          else "",
+      Competency         = competency_str,
       stringsAsFactors   = FALSE,
       check.names        = FALSE
     )
   })
 
-  result <- do.call(rbind, rows)
+  result <- tryCatch(
+    do.call(rbind, rows),
+    error = function(e) { warning("do.call(rbind) in get_ccc_review_all failed: ", e$message); data.frame() }
+  )
 
-  # Sort newest first
-  if ("Date" %in% names(result) && any(nchar(result$Date) > 0)) {
+  # Sort newest first (Date is NA_character_ for missing; na.last puts them at end)
+  if ("Date" %in% names(result) && any(!is.na(result$Date))) {
     result <- result[order(result$Date, decreasing = TRUE, na.last = TRUE), ]
   }
 

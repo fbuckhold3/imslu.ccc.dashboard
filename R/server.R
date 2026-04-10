@@ -3,6 +3,247 @@
 #
 # Note: This function expects rdm_data to be passed as a parameter
 
+# ── Section UI helpers (called from main_view renderUI) ────────────────────────
+
+semiannual_section_ui <- function() {
+  tagList(
+    br(),
+
+    # List View
+    conditionalPanel(
+      condition = "output.show_resident_list == true",
+      fluidRow(
+        column(
+          width = 3,
+          gmed::gmed_card(
+            title = "Current Review Period",
+            textOutput("current_period_display"),
+            tags$hr(style = "margin: 15px 0;"),
+            actionButton("refresh_data", "Refresh Data",
+                         icon = icon("sync"), class = "btn-primary w-100")
+          ),
+          tags$br(),
+          gmed::gmed_card(title = "Review Progress", uiOutput("review_stats"))
+        ),
+        column(
+          width = 9,
+          gmed::gmed_card(
+            title = "Filters",
+            tags$div(
+              tags$strong("Review Status:"),
+              tags$br(),
+              tags$div(
+                style = "margin: 10px 0;",
+                actionButton("filter_all",              "All",                    class = "btn-sm", style = "margin-right: 5px;"),
+                actionButton("filter_all_done",         "All Done",               class = "btn-sm", style = "margin-right: 5px;"),
+                actionButton("filter_coach_done",       "Coach Done",             class = "btn-sm", style = "margin-right: 5px;"),
+                actionButton("filter_coach_second_done","Coach & Second Done",    class = "btn-sm")
+              )
+            ),
+            tags$hr(style = "margin: 15px 0;"),
+            tags$div(
+              tags$strong("PGY Level:"),
+              tags$br(),
+              tags$div(
+                style = "margin: 10px 0;",
+                actionButton("filter_pgy_all",   "All",    class = "btn-sm", style = "margin-right: 5px;"),
+                actionButton("filter_pgy_intern","Intern", class = "btn-sm", style = "margin-right: 5px;"),
+                actionButton("filter_pgy_pgy2",  "PGY2",  class = "btn-sm", style = "margin-right: 5px;"),
+                actionButton("filter_pgy_pgy3",  "PGY3",  class = "btn-sm")
+              )
+            ),
+            tags$hr(style = "margin: 15px 0;"),
+            fluidRow(
+              column(width = 6, tags$strong("Coach:"),           tags$br(), uiOutput("filter_coach_buttons")),
+              column(width = 6, tags$strong("Second Reviewer:"), tags$br(), uiOutput("filter_second_buttons"))
+            )
+          ),
+          tags$br(),
+          gmed::gmed_card(
+            title = "Residents for Review",
+            DT::DTOutput("resident_review_table")
+          )
+        )
+      )
+    ),
+
+    # Detail View
+    conditionalPanel(
+      condition = "output.show_resident_list == false",
+      fluidRow(
+        column(
+          width = 12,
+          actionButton("back_to_list", "\u2190 Back to List",
+                       icon = icon("arrow-left"), class = "btn-secondary"),
+          hr(),
+          uiOutput("resident_detail_panel")
+        )
+      )
+    )
+  )
+}
+
+interim_section_ui <- function() {
+  tagList(
+    tags$style(HTML("
+      /* ── Table wrapper ── */
+      #tracker_ccc_review_table .dataTables_wrapper {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      }
+
+      /* ── Base table ── */
+      #tracker_ccc_review_table table.dataTable {
+        font-size: 1.0rem !important;
+        border-collapse: collapse !important;
+        width: 100% !important;
+      }
+
+      /* ── Header ── */
+      #tracker_ccc_review_table table.dataTable thead th {
+        background: linear-gradient(135deg, #003d5c 0%, #0066a1 100%) !important;
+        color: #ffffff !important;
+        font-size: 0.85rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.06em !important;
+        text-transform: uppercase !important;
+        padding: 14px 18px !important;
+        border: none !important;
+        white-space: nowrap;
+      }
+      #tracker_ccc_review_table table.dataTable thead th:first-child { border-radius: 0; }
+
+      /* ── Body cells ── */
+      #tracker_ccc_review_table table.dataTable tbody td {
+        padding: 13px 18px !important;
+        vertical-align: middle !important;
+        border-bottom: 1px solid #e8eef5 !important;
+        border-right: none !important;
+        font-size: 0.95rem !important;
+        line-height: 1.5;
+        color: #2d3748;
+      }
+
+      /* ── Zebra rows ── */
+      #tracker_ccc_review_table table.dataTable tbody tr:nth-child(odd)  td { background-color: #ffffff !important; }
+      #tracker_ccc_review_table table.dataTable tbody tr:nth-child(even) td { background-color: #f4f8fd !important; }
+
+      /* ── Hover ── */
+      #tracker_ccc_review_table table.dataTable tbody tr:hover td {
+        background-color: #dbeafe !important;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+      }
+
+      /* ── Selected ── */
+      #tracker_ccc_review_table table.dataTable tbody tr.selected td {
+        background-color: #bfdbfe !important;
+      }
+
+      /* ── Search / length controls ── */
+      #tracker_ccc_review_table .dataTables_filter input,
+      #tracker_ccc_review_table .dataTables_length select {
+        border: 1.5px solid #cbd5e0;
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 0.9rem;
+      }
+      #tracker_ccc_review_table .dataTables_filter label,
+      #tracker_ccc_review_table .dataTables_length label,
+      #tracker_ccc_review_table .dataTables_info {
+        font-size: 0.88rem;
+        color: #4a5568;
+      }
+    ")),
+
+    gmed::gmed_card(
+      title = "CCC Review Records",
+      tags$p(
+        style = "font-size:0.9rem; color:#6c757d; margin-bottom:14px;",
+        tags$i(class = "bi bi-cursor-fill me-1", style = "color:#0066a1;"),
+        "Click a resident to log a new interim review."
+      ),
+      DT::DTOutput("tracker_ccc_review_table")
+    )
+  )
+}
+
+milestones_section_ui <- function() {
+  tabsetPanel(
+    id   = "ms_subtabs",
+    type = "tabs",
+
+    tabPanel(
+      title = "Program Trends",
+      value = "ms_program",
+      br(),
+      fluidRow(
+        column(width = 3,
+          gmed::gmed_card(
+            title = "Filters",
+            selectInput("ms_category", "Competency Category:",
+              choices  = c("All", "PC", "MK", "SBP", "PBL", "PROF", "ICS"),
+              selected = "All", width = "100%"),
+            selectInput("ms_specific", "Specific Subcompetency:",
+              choices  = c("All (Average)" = "__all__"),
+              selected = "__all__", width = "100%"),
+            tags$hr(),
+            checkboxInput("ms_show_cohorts", "Color boxes by graduation year", value = FALSE),
+            checkboxInput("ms_show_points",  "Show individual data points",     value = FALSE),
+            tags$hr(),
+            tags$p(class = "text-muted", style = "font-size:0.88rem; line-height:1.6;",
+              icon("circle-info"),
+              " Includes active and historical (archived) residents. ",
+              "Box = 25th\u201375th percentile; line = median. ",
+              "Dashed red line = Level 4 target.")
+          )
+        ),
+        column(width = 9,
+          gmed::gmed_card(
+            title = "Milestone Score Distribution by Review Period",
+            uiOutput("ms_loading_indicator"),
+            plotly::plotlyOutput("ms_program_plot", height = "500px")
+          )
+        )
+      )
+    ),
+
+    tabPanel(
+      title = "Individual Resident",
+      value = "ms_individual",
+      br(),
+      fluidRow(
+        column(width = 3,
+          gmed::gmed_card(
+            title = "Select Resident",
+            selectizeInput("ms_resident", "Resident:", choices = NULL,
+              options = list(placeholder = "Type to search...", maxOptions = 300)),
+            selectInput("ms_ind_category", "Competency Category:",
+              choices  = c("All", "PC", "MK", "SBP", "PBL", "PROF", "ICS"),
+              selected = "All", width = "100%"),
+            tags$hr(),
+            tags$p(class = "text-muted", style = "font-size:0.88rem; line-height:1.6;",
+              icon("circle-info"),
+              " Each colored line = one subcompetency (e.g. PC1, PC2\u2026). ",
+              "Grey ribbon + dotted line = program 25th\u201375th %ile and median ",
+              "for the selected category. Dashed red = Level 4 target.")
+          )
+        ),
+        column(width = 9,
+          gmed::gmed_card(
+            title = "Individual Subcompetency Trajectories vs. Program",
+            uiOutput("ms_ind_loading_indicator"),
+            plotly::plotlyOutput("ms_individual_plot", height = "520px")
+          )
+        )
+      )
+    )
+  )
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+
 create_server <- function(initial_data) {
   function(input, output, session) {
 
@@ -10,7 +251,8 @@ create_server <- function(initial_data) {
     app_data <- reactiveVal(initial_data)
     selected_resident_id <- reactiveVal(NULL)
     show_list_view <- reactiveVal(TRUE)
-    authenticated <- reactiveVal(FALSE)
+    nav_state  <- reactiveValues(current = "login")
+    auth_error <- reactiveVal(NULL)
     filtered_review_table <- reactiveVal(NULL)
 
     # Ad hoc milestone modal data
@@ -29,43 +271,186 @@ create_server <- function(initial_data) {
   # AUTHENTICATION
   # ===========================================================================
 
-  # Output authenticated status for conditional panels
-  output$authenticated <- reactive({
-    authenticated()
-  })
-  outputOptions(output, "authenticated", suspendWhenHidden = FALSE)
-
-  # Handle access code submission
   observeEvent(input$submit_access_code, {
-    # Get the expected access code from environment variable
     expected_code <- Sys.getenv("CCC_ACCESS_CODE")
 
     if (expected_code == "") {
-      showNotification(
-        "Access code not configured. Please set CCC_ACCESS_CODE environment variable.",
-        type = "error",
-        duration = 10
-      )
+      auth_error("Access code not configured. Please set CCC_ACCESS_CODE.")
       return()
     }
 
-    # Check if entered code matches
     if (!is.null(input$access_code) && input$access_code == expected_code) {
-      authenticated(TRUE)
-      showNotification(
-        "Access granted. Welcome to the CCC Dashboard!",
-        type = "message",
-        duration = 3
-      )
+      nav_state$current <- "home"
+      auth_error(NULL)
     } else {
-      output$access_error_message <- renderUI({
-        tags$div(
-          style = "color: #dc3545; margin-top: 15px; font-size: 14px;",
-          icon("exclamation-circle"),
-          " Invalid access code. Please try again."
-        )
-      })
+      auth_error("Invalid access code. Please try again.")
     }
+  })
+
+  # ── Navigation ──────────────────────────────────────────────────────────────
+
+  observeEvent(input$nav_block, {
+    req(nav_state$current == "home")
+    nav_state$current <- input$nav_block
+  })
+
+  observeEvent(input$nav_back, {
+    nav_state$current <- "home"
+  })
+
+  # ── Main view ───────────────────────────────────────────────────────────────
+
+  output$main_view <- renderUI({
+    state <- nav_state$current
+
+    # ── LOGIN ──────────────────────────────────────────────────────────────────
+    if (state == "login") {
+      return(tagList(
+
+        div(
+          style = paste(
+            "background: #003d5c; color: white;",
+            "padding: 18px 32px;",
+            "display: flex; align-items: center; gap: 16px;",
+            "margin: -24px -24px 40px -24px;"
+          ),
+          div(
+            style = "background: rgba(255,255,255,0.15); font-size:0.68rem;
+                     font-weight:700; letter-spacing:0.12em; padding: 4px 10px;
+                     border-radius: 3px; white-space: nowrap;",
+            "SSM HEALTH \u00b7 SLUCARE"
+          ),
+          tags$h1(
+            "CCC Dashboard",
+            style = "margin:0; font-size:1.2rem; font-weight:700; letter-spacing:0.01em;"
+          ),
+          div(
+            style = "margin-left:auto; font-size:0.8rem; opacity:0.65;",
+            "Internal Medicine \u00b7 Saint Louis University"
+          )
+        ),
+
+        div(
+          class = "row justify-content-center",
+          div(
+            class = "col-lg-8 col-md-10 col-12",
+            div(
+              class = "card shadow-lg",
+              div(
+                class = "card-body p-5",
+
+                div(
+                  class = "text-center mb-4",
+                  tags$h2(
+                    class = "mb-2",
+                    style = "color: #003d5c; font-weight: 700;",
+                    tags$i(class = "bi bi-shield-lock me-2", style = "color: #0066a1;"),
+                    "CCC Dashboard Access"
+                  ),
+                  tags$p(
+                    class = "lead text-muted",
+                    "Clinical Competency Committee \u00b7 IMSLU Internal Medicine Residency"
+                  ),
+                  tags$hr()
+                ),
+
+                div(
+                  style = paste(
+                    "background: #f8fafc;",
+                    "border: 1px solid #dde5ed;",
+                    "border-left: 4px solid #0066a1;",
+                    "border-radius: 4px;",
+                    "padding: 16px 18px;",
+                    "font-size: 0.82rem;",
+                    "color: #4a5568;",
+                    "line-height: 1.7;",
+                    "margin-bottom: 28px;"
+                  ),
+                  paste(
+                    "This dashboard is restricted to authorized Clinical Competency Committee",
+                    "members and program leadership. Resident data displayed here is",
+                    "confidential. By entering your access code you acknowledge that",
+                    "unauthorized access or distribution of this information is prohibited.",
+                    "All activity may be monitored and logged."
+                  )
+                ),
+
+                div(
+                  tags$label(
+                    "Access Code",
+                    style = "font-size:0.82rem; font-weight:600; color:#2d3748; margin-bottom:6px; display:block;"
+                  ),
+                  passwordInput(
+                    inputId     = "access_code",
+                    label       = NULL,
+                    placeholder = "Enter access code",
+                    width       = "100%"
+                  ),
+                  actionButton(
+                    inputId = "submit_access_code",
+                    label   = "Sign In",
+                    icon    = icon("sign-in-alt"),
+                    class   = "btn-primary w-100",
+                    style   = "margin-top: 10px;"
+                  ),
+                  if (!is.null(auth_error())) {
+                    div(
+                      style = "color: #dc3545; margin-top: 12px; font-size: 0.88rem;",
+                      tags$i(class = "bi bi-exclamation-circle me-1"),
+                      auth_error()
+                    )
+                  }
+                )
+              )
+            )
+          )
+        )
+      ))
+    }
+
+    # ── HOME ───────────────────────────────────────────────────────────────────
+    if (state == "home") {
+      return(
+        gmed::gmed_nav_blocks(
+          blocks   = ccc_nav_blocks,
+          title    = "CCC Dashboard",
+          subtitle = "Clinical Competency Committee \u00b7 SLU Internal Medicine",
+          input_id = "nav_block"
+        )
+      )
+    }
+
+    # ── SECTION ────────────────────────────────────────────────────────────────
+    block_info    <- Filter(function(b) b$id == state, ccc_nav_blocks)
+    section_label <- if (length(block_info)) block_info[[1]]$label else state
+    section_icon  <- if (length(block_info)) block_info[[1]]$icon  else "grid"
+
+    tagList(
+      div(
+        class = "d-flex align-items-center mb-4 pb-3",
+        style = "border-bottom: 1px solid var(--ssm-border, #dde5ed);",
+        tags$button(
+          class   = "btn btn-sm btn-outline-secondary me-3",
+          onclick = "Shiny.setInputValue('nav_back', Math.random(), {priority: 'event'})",
+          tags$i(class = "bi bi-arrow-left me-1"), "Home"
+        ),
+        tags$i(
+          class = paste0("bi bi-", section_icon, " me-2"),
+          style = "color: #0066a1; font-size: 1.15rem;"
+        ),
+        tags$span(
+          section_label,
+          style = "font-weight: 700; font-size: 1.1rem; color: #003d5c;"
+        )
+      ),
+
+      switch(state,
+        semiannual = semiannual_section_ui(),
+        interim    = interim_section_ui(),
+        milestones = milestones_section_ui(),
+        div("Unknown section")
+      )
+    )
   })
 
   # ===========================================================================
@@ -2878,87 +3263,583 @@ create_server <- function(initial_data) {
   })
 
   # ===========================================================================
-  # FOLLOW-UP TRACKER — CCC Review full table (Tab 2)
+  # INTERIM REVIEWS — CCC Review table (one row per resident, most recent review)
   # ===========================================================================
 
-  # Populate session filter choices from loaded data
-  observe({
-    ccc_all <- app_data()$all_forms$ccc_review
-    if (is.null(ccc_all)) return()
-
-    sessions <- unique(ccc_all$ccc_session)
-    sessions <- sessions[!is.na(sessions) & nchar(trimws(sessions)) > 0]
-    sessions <- sort(sessions)
-
-    updateSelectInput(session, "tracker_session_filter",
-                      choices  = c("All", sessions),
-                      selected = "All")
-  })
-
   output$tracker_ccc_review_table <- DT::renderDT({
-    all_reviews <- get_ccc_review_all(app_data())
+    all_reviews <- tryCatch(
+      get_ccc_review_all(app_data()),
+      error = function(e) { warning("get_ccc_review_all failed: ", e$message); data.frame() }
+    )
 
-    if (is.null(all_reviews) || nrow(all_reviews) == 0) {
-      return(DT::datatable(
-        data.frame(Resident = character(0), Session = character(0),
-                   Date = character(0), Type = character(0),
-                   Concern = character(0), Actions = character(0),
-                   Status = character(0), `Follow-up Notes` = character(0),
-                   check.names = FALSE),
-        rownames = FALSE,
-        options  = list(dom = "t", pageLength = 50)
-      ))
+    # ── Badge helper ──────────────────────────────────────────────────────────
+    pill <- function(text, bg, fg = "#fff") {
+      if (is.na(text) || nchar(trimws(text)) == 0) return("")
+      paste0(
+        '<span style="display:inline-block;padding:3px 11px;border-radius:20px;',
+        'font-size:0.8rem;font-weight:600;white-space:nowrap;letter-spacing:0.01em;',
+        'background:', bg, ';color:', fg, ';">', text, '</span>'
+      )
     }
 
-    # Apply type filter
-    type_filter <- input$tracker_rev_type_filter
-    if (!is.null(type_filter) && type_filter != "All") {
-      all_reviews <- all_reviews[all_reviews$Type == type_filter, ]
+    trunc80 <- function(x) {
+      s <- trimws(as.character(x))
+      if (is.na(s) || s == "NA" || nchar(s) == 0) return("")
+      if (nchar(s) > 80) paste0(substr(s, 1, 80), "\u2026") else s
     }
 
-    # Apply session filter
-    sess_filter <- input$tracker_session_filter
-    if (!is.null(sess_filter) && sess_filter != "All") {
-      all_reviews <- all_reviews[all_reviews$Session == sess_filter, ]
+    # ── All residents as the base (ensures interns etc. always appear) ────────
+    res_base <- app_data()$residents %>%
+      filter(!is.na(full_name) & nchar(trimws(full_name)) > 0) %>%
+      mutate(
+        record_id = trimws(as.character(record_id)),
+        PGY = dplyr::case_when(
+          grepl("Intern",          current_period, ignore.case = TRUE) ~ "PGY1",
+          grepl("PGY2",            current_period, ignore.case = TRUE) ~ "PGY2",
+          grepl("PGY3|Graduating", current_period, ignore.case = TRUE) ~ "PGY3",
+          TRUE ~ ""
+        )
+      ) %>%
+      select(record_id, Resident = full_name, PGY)
+
+    # Most recent CCC review per resident (NULL-safe)
+    recent_rev <- if (!is.null(all_reviews) && nrow(all_reviews) > 0) {
+      all_reviews %>%
+        mutate(record_id = trimws(as.character(record_id))) %>%
+        arrange(dplyr::desc(dplyr::coalesce(Date, ""))) %>%
+        group_by(record_id) %>%
+        slice(1) %>%
+        ungroup() %>%
+        select(record_id, Date, Type, Session, Status,
+               `Progress Notes`, ILP, `Follow-up Notes`, `Person Resp`, Competency)
+    } else {
+      data.frame(
+        record_id = character(0), Date = character(0),
+        Type = character(0), Session = character(0), Status = character(0),
+        `Progress Notes` = character(0), ILP = character(0),
+        `Follow-up Notes` = character(0), `Person Resp` = character(0),
+        Competency = character(0),
+        check.names = FALSE
+      )
     }
 
-    display_cols <- c("Resident", "Session", "Date", "Type", "Concern",
-                      "Actions", "Status", "Follow-up Notes")
+    tbl <- res_base %>%
+      left_join(recent_rev, by = "record_id") %>%
+      mutate(
+        `Last Review Date` = if_else(is.na(Date), "", as.character(Date)),
+        `Last Review` = dplyr::case_when(
+          is.na(Type) | nchar(trimws(Type)) == 0 ~ "",
+          !is.na(Session) & nchar(trimws(Session)) > 0 ~
+            paste0(Type, " \u00b7 ", Session),
+          TRUE ~ Type
+        ),
+        # Notes: ccc_interim if last was Interim, ccc_ilp if Scheduled
+        Notes = mapply(function(type, interim, ilp) {
+          raw <- if (!is.na(type) && grepl("Interim", type, ignore.case = TRUE)) interim else ilp
+          trunc80(raw)
+        }, Type, `Progress Notes`, ILP, SIMPLIFY = TRUE),
+        # Follow-up is always ccc_issues_follow_up
+        `Follow-up` = vapply(`Follow-up Notes`, trunc80, character(1)),
+        Person = vapply(`Person Resp`, function(x) {
+          s <- trimws(as.character(x))
+          if (is.na(s) || s == "NA") "" else s
+        }, character(1))
+      ) %>%
+      mutate(
+        Competency = vapply(Competency, function(x) {
+          s <- trimws(as.character(x))
+          if (is.na(s) || s == "NA" || nchar(s) == 0) return("")
+          if (nchar(s) > 60) paste0(substr(s, 1, 60), "\u2026") else s
+        }, character(1))
+      ) %>%
+      select(record_id, Resident, PGY, `Last Review Date`, `Last Review`,
+             Status, Competency, Notes, `Follow-up`, Person) %>%
+      arrange(Resident)
+
+    # Badge: Last Review
+    tbl$`Last Review` <- vapply(tbl$`Last Review`, function(t) {
+      if (nchar(trimws(t)) == 0) return("")
+      if (grepl("Interim", t)) pill(t, "#6f42c1") else pill(t, "#6c757d")
+    }, character(1))
+
+    # Badge: Status
+    tbl$Status <- vapply(tbl$Status, function(s) {
+      if (is.na(s) || nchar(trimws(s)) == 0) return("")
+      switch(trimws(s),
+        "Initiation" = pill(s, "#fff3cd", "#7a5c00"),
+        "Ongoing"    = pill(s, "#cff4fc", "#0a4a5e"),
+        "Resolved"   = pill(s, "#d1e7dd", "#0f5132"),
+        "Recurring"  = pill(s, "#f8d7da", "#842029"),
+        pill(s, "#e9ecef", "#495057")
+      )
+    }, character(1))
 
     DT::datatable(
-      all_reviews[, display_cols, drop = FALSE],
-      selection = "none",
+      tbl,
+      selection = "single",
       rownames  = FALSE,
-      escape    = TRUE,
+      escape    = FALSE,
+      class     = "cell-border",
       options   = list(
-        pageLength = 50,
-        dom        = "ftp",
-        scrollX    = TRUE,
-        order      = list(list(2, "desc")),  # sort by Date desc
-        rowCallback = DT::JS(
-          "function(row, data, index) {",
-          "  // data[3] = Type column (0-indexed)",
-          "  if (data[3] === 'Interim') {",
-          "    $(row).css({'background-color':'#ede7f6','color':'#4a1d8e'});",
-          "  }",
-          "  // data[4] = Concern column",
-          "  if (data[4] === 'Yes' && data[3] !== 'Interim') {",
-          "    $(row).css({'background-color':'#fff3cd'});",
-          "  }",
-          "}"
+        paging  = FALSE,
+        dom     = "ft",
+        scrollX = TRUE,
+        order   = list(list(1, "asc")),
+        columnDefs = list(
+          list(visible = FALSE, targets = 0),                  # record_id
+          list(width = "170px", targets = 1),                  # Resident
+          list(width = "55px",  targets = 2),                  # PGY
+          list(width = "105px", targets = 3),                  # Last Review Date
+          list(width = "165px", targets = 4),                  # Last Review
+          list(width = "110px", targets = 5),                  # Status
+          list(width = "160px", targets = 6),                  # Competency
+          list(width = "220px", targets = 7),                  # Notes
+          list(width = "220px", targets = 8),                  # Follow-up
+          list(width = "115px", targets = 9),                  # Person
+          list(className = "dt-body-left", targets = "_all")
         )
       )
     ) %>%
-      DT::formatStyle("Status",
-        backgroundColor = DT::styleEqual(
-          c("Initiation", "Ongoing", "Resolved", "Recurring"),
-          c("#fff3cd",    "#cff4fc",  "#d1e7dd",  "#f8d7da")
-        )
-      ) %>%
-      DT::formatStyle("Concern",
-        color = DT::styleEqual(c("Yes", "No"), c("#dc3545", "inherit")),
-        fontWeight = DT::styleEqual(c("Yes", "No"), c("bold", "normal"))
+      DT::formatStyle("Resident",         fontWeight = "700", fontSize = "1.0rem") %>%
+      DT::formatStyle("Last Review Date", fontWeight = "500", fontSize = "0.97rem", color = "#2d3748") %>%
+      DT::formatStyle("Notes",            fontSize = "0.95rem", color = "#4a5568") %>%
+      DT::formatStyle("Follow-up",        fontSize = "0.95rem", color = "#4a5568") %>%
+      DT::formatStyle("Person",           fontSize = "0.95rem", color = "#4a5568") %>%
+      DT::formatStyle("Competency",       fontSize = "0.88rem", color = "#6f42c1", fontStyle = "italic") %>%
+      DT::formatStyle("PGY",              fontWeight = "600", fontSize = "0.95rem", color = "#0066a1")
+  })
+
+  # ===========================================================================
+  # INTERIM REVIEWS — row click → new interim entry modal
+  # ===========================================================================
+
+  interim_edit_rid <- reactiveVal(NULL)
+
+  observeEvent(input$tracker_ccc_review_table_rows_selected, {
+    idx <- input$tracker_ccc_review_table_rows_selected
+    req(length(idx) > 0)
+
+    # Derive ordered resident list matching the table (all residents, sorted by name)
+    res_tbl <- app_data()$residents %>%
+      select(record_id, Resident = full_name) %>%
+      filter(!is.na(Resident) & nchar(trimws(Resident)) > 0) %>%
+      arrange(Resident)
+
+    if (idx > nrow(res_tbl)) return()
+    rid <- as.character(res_tbl$record_id[idx])
+    interim_edit_rid(rid)
+
+    # ── Resident display name ─────────────────────────────────────────────────
+    nm_val   <- app_data()$residents %>% filter(record_id == rid) %>% pull(full_name)
+    res_name <- if (length(nm_val) > 0 && !is.na(nm_val[1])) nm_val[1] else rid
+
+    # ── History table: ALL records for this resident ──────────────────────────
+    raw_all <- app_data()$all_forms$ccc_review
+
+    hist_fields <- list(
+      list("ccc_interim",          "Discussion Summary"),
+      list("ccc_fu_resp",          "Person Responsible"),
+      list("ccc_issues_follow_up", "Follow-up / Action Items"),
+      list("__competency__",       "Competency")   # special: derived from checkboxes
+    )
+
+    past <- if (!is.null(raw_all)) {
+      raw_all %>%
+        filter(record_id == rid, redcap_repeat_instrument == "ccc_review") %>%
+        arrange(desc(ccc_date))
+    } else data.frame()
+
+    history_table_ui <- if (nrow(past) == 0) {
+      div(
+        style = "color:#6c757d; font-size:0.85rem; padding:8px 0;",
+        tags$i(class = "bi bi-clock-history me-1"),
+        "No prior CCC records for this resident."
       )
+    } else {
+      th_style <- paste0(
+        "font-size:0.75rem; font-weight:700; color:#6c757d; text-transform:uppercase;",
+        "letter-spacing:0.05em; padding:6px 10px; border-bottom:2px solid #dee2e6;",
+        "white-space:nowrap; background:#f8f9fa; position:sticky; top:0;"
+      )
+      td_style <- "font-size:0.85rem; color:#2d3748; padding:6px 10px; vertical-align:top; border-bottom:1px solid #f0f4f8;"
+      td_meta  <- paste0(td_style, " white-space:nowrap; color:#6c757d;")
+
+      header_row <- tags$tr(
+        tags$th(style = th_style, "Date"),
+        tags$th(style = th_style, "Type / Session"),
+        lapply(hist_fields, function(fl) tags$th(style = th_style, fl[[2]]))
+      )
+
+      # Pre-build competency label map for history rows (code -> label)
+      hist_comp_map <- tryCatch({
+        cs <- app_data()$data_dict %>%
+          filter(field_name == "ccc_competency") %>%
+          pull(select_choices_or_calculations)
+        if (length(cs) > 0 && !is.na(cs[1]) && nchar(cs[1]) > 0) {
+          pairs <- strsplit(cs[1], "\\|")[[1]]
+          m <- list()
+          for (p in pairs) {
+            parts <- strsplit(trimws(p), ",", fixed = TRUE)[[1]]
+            if (length(parts) >= 2)
+              m[[trimws(parts[1])]] <- trimws(paste(parts[-1], collapse = ","))
+          }
+          if (length(m) > 0) m else NULL
+        } else NULL
+      }, error = function(e) NULL)
+
+      body_rows <- lapply(seq_len(nrow(past)), function(i) {
+        hr_row   <- past[i, ]
+        h_date   <- clean_str(if ("ccc_date"    %in% names(hr_row)) hr_row$ccc_date[1]    else "")
+        h_sess   <- clean_str(if ("ccc_session" %in% names(hr_row)) hr_row$ccc_session[1] else "")
+        h_type   <- if ("ccc_rev_type" %in% names(hr_row) && !is.na(hr_row$ccc_rev_type[1]) &&
+                        hr_row$ccc_rev_type[1] == "2") "Interim" else "Scheduled"
+        meta_str <- paste0(h_type, if (nchar(h_sess) > 0) paste0(" \u00b7 ", h_sess) else "")
+
+        tags$tr(
+          tags$td(style = td_meta, h_date),
+          tags$td(style = td_meta, meta_str),
+          lapply(hist_fields, function(fl) {
+            val <- if (fl[[1]] == "__competency__") {
+              lbls <- c()
+              for (n in 1:7) {
+                col <- paste0("ccc_competency___", n)
+                if (col %in% names(hr_row) && !is.na(hr_row[[col]][1]) && hr_row[[col]][1] == "1") {
+                  lbl <- if (!is.null(hist_comp_map) && !is.null(hist_comp_map[[as.character(n)]]))
+                    hist_comp_map[[as.character(n)]] else as.character(n)
+                  lbls <- c(lbls, lbl)
+                }
+              }
+              if (length(lbls) > 0) paste(lbls, collapse = ", ") else ""
+            } else {
+              clean_str(if (fl[[1]] %in% names(hr_row)) hr_row[[fl[[1]]]][1] else "")
+            }
+            tags$td(style = paste0(td_style, " white-space:pre-wrap;"), val)
+          })
+        )
+      })
+
+      div(
+        style = "max-height:260px; overflow-y:auto; border:1px solid #dee2e6; border-radius:4px;",
+        tags$table(
+          style = "width:100%; border-collapse:collapse;",
+          tags$thead(header_row),
+          tags$tbody(body_rows)
+        )
+      )
+    }
+
+    # ── Access code + dashboard link ─────────────────────────────────────────
+    ac_val <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      pull(access_code)
+    ac_val <- if (length(ac_val) > 0 && !is.na(ac_val[1]) && nchar(trimws(ac_val[1])) > 0)
+      trimws(ac_val[1]) else ""
+    dash_url <- paste0(
+      "https://fbuckhold3-imsluresidentdashboard.share.connect.posit.cloud",
+      if (nchar(ac_val) > 0) paste0("?code=", ac_val) else ""
+    )
+
+    # ── ABIM risk (nomogram: McDonald et al. 2020) ───────────────────────────
+    .ccc_pass_prob <- function(pct, pgy) {
+      params <- list(
+        `1` = list(b0 = -7.0641,  b1 = 0.1811),
+        `2` = list(b0 = -8.1445,  b1 = 0.1733),
+        `3` = list(b0 = -11.9491, b1 = 0.2173)
+      )
+      p <- params[[as.character(pgy)]]
+      if (is.null(p)) return(NA_real_)
+      round(100 / (1 + exp(-(p$b0 + p$b1 * pct))), 1)
+    }
+
+    # ── Shared quick-links (always shown) ────────────────────────────────────
+    quick_links_ui <- div(
+      style = "display:flex; flex-direction:column; gap:8px; min-width:190px;",
+      # MKSAP button
+      tags$a(
+        href   = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
+        target = "_blank",
+        style  = paste0(
+          "display:flex; align-items:center; justify-content:center; gap:7px;",
+          "padding:9px 16px; border-radius:7px; font-size:0.88rem; font-weight:600;",
+          "color:#0066a1; background:#ebf8ff; border:1.5px solid #90cdf4;",
+          "text-decoration:none; white-space:nowrap; transition:background 0.15s;"
+        ),
+        tags$i(class = "bi bi-journal-medical", style = "font-size:1rem;"),
+        "MKSAP Tracker \u2197"
+      ),
+      # Resident dashboard button — prominent
+      tags$a(
+        href   = dash_url,
+        target = "_blank",
+        style  = paste0(
+          "display:flex; align-items:center; justify-content:center; gap:7px;",
+          "padding:9px 16px; border-radius:7px; font-size:0.88rem; font-weight:700;",
+          "color:#ffffff; background:linear-gradient(135deg,#003d5c 0%,#0066a1 100%);",
+          "border:none; text-decoration:none; white-space:nowrap;",
+          "box-shadow:0 2px 8px rgba(0,102,161,0.35); transition:opacity 0.15s;"
+        ),
+        tags$i(class = "bi bi-person-video3", style = "font-size:1rem;"),
+        paste0("Open ", res_name, "\u2019s Dashboard \u2197")
+      )
+    )
+
+    abim_ui <- tryCatch({
+      td <- app_data()$all_forms$test_data
+      td_row <- if (!is.null(td)) td %>% filter(record_id == rid) else NULL
+      if (!is.null(td_row) && nrow(td_row) > 0) {
+        pcts <- c(
+          "1" = suppressWarnings(as.numeric(td_row$pgy1_tot_correct[1])),
+          "2" = suppressWarnings(as.numeric(td_row$pgy2_tot_correct[1])),
+          "3" = suppressWarnings(as.numeric(td_row$pgy3_tot_correct[1]))
+        )
+        valid <- pcts[!is.na(pcts) & pcts > 0]
+        if (length(valid) > 0) {
+          last_pgy  <- names(valid)[length(valid)]
+          last_pct  <- valid[[last_pgy]]
+          probs     <- sapply(names(valid), function(g) .ccc_pass_prob(valid[[g]], g))
+          best_prob <- max(probs, na.rm = TRUE)
+          risk_col  <- if (best_prob < 50) "#d32f2f" else if (best_prob < 75) "#e65100" else "#2e7d32"
+          risk_bg   <- if (best_prob < 50) "#fff5f5" else if (best_prob < 75) "#fffaf0" else "#f0fff4"
+          risk_lbl  <- if (best_prob < 50) "High Risk" else if (best_prob < 75) "Moderate Risk" else "Low Risk"
+
+          div(
+            style = "display:flex; align-items:stretch; gap:12px; flex-wrap:wrap;",
+            # ITE score card
+            div(
+              style = paste0(
+                "background:#f8faff; border:1.5px solid #c3d9f0; border-radius:8px;",
+                "padding:10px 18px; min-width:140px; flex:1;"
+              ),
+              tags$div(
+                style = "font-size:0.72rem; font-weight:700; color:#4a6785;
+                         text-transform:uppercase; letter-spacing:0.07em; margin-bottom:3px;",
+                paste0("ITE Score \u00b7 PGY-", last_pgy)
+              ),
+              tags$div(
+                style = "font-size:1.5rem; font-weight:800; color:#003d5c; line-height:1.1;",
+                paste0(round(last_pct, 1), "%")
+              ),
+              tags$div(
+                style = "font-size:0.75rem; color:#6c757d; margin-top:2px;",
+                "% correct on in-training exam"
+              )
+            ),
+            # Pass probability card
+            div(
+              style = paste0(
+                "background:", risk_bg, "; border:1.5px solid ", risk_col, "60;",
+                "border-radius:8px; padding:10px 18px; min-width:160px; flex:1;"
+              ),
+              tags$div(
+                style = "font-size:0.72rem; font-weight:700; color:#4a6785;
+                         text-transform:uppercase; letter-spacing:0.07em; margin-bottom:3px;",
+                "P(Pass ABIM)"
+              ),
+              tags$div(
+                tags$span(
+                  style = paste0("font-size:1.5rem; font-weight:800; color:", risk_col, "; line-height:1.1;"),
+                  paste0(round(best_prob, 1), "%")
+                )
+              ),
+              div(
+                style = paste0(
+                  "display:inline-block; margin-top:4px; padding:2px 8px; border-radius:20px;",
+                  "background:", risk_col, "; color:#fff;",
+                  "font-size:0.72rem; font-weight:700; letter-spacing:0.04em;"
+                ),
+                risk_lbl
+              )
+            ),
+            # Quick links column
+            quick_links_ui
+          )
+        } else {
+          div(style = "display:flex; align-items:center; gap:12px;",
+              div(style = "font-size:0.88rem; color:#6c757d; font-style:italic;",
+                  "No ITE data on file."),
+              quick_links_ui)
+        }
+      } else {
+        div(style = "display:flex; align-items:center; gap:12px;",
+            div(style = "font-size:0.88rem; color:#6c757d; font-style:italic;",
+                "No ITE data on file."),
+            quick_links_ui)
+      }
+    }, error = function(e) {
+      div(style = "display:flex; gap:12px;", quick_links_ui)
+    })
+
+    # ── Choices from data dict ───────────────────────────────────────────────
+    dd                 <- app_data()$data_dict
+    action_choices     <- get_field_choices(dd, "ccc_action",        for_ui = TRUE)
+    competency_choices <- get_field_choices(dd, "ccc_competency",    for_ui = TRUE)
+    status_choices     <- get_field_choices(dd, "ccc_action_status", for_ui = TRUE)
+
+    if (length(action_choices) == 0)
+      action_choices <- setNames(as.character(1:8), unname(CCC_ACTION_LABELS))
+    if (length(status_choices) == 0)
+      status_choices <- c("Initiation" = "1", "Ongoing" = "2", "Resolved" = "3", "Recurring" = "4")
+
+    # ── Modal (wider via inline CSS override) ────────────────────────────────
+    showModal(modalDialog(
+      title = div(
+        style = "display:flex; align-items:center; gap:12px;",
+        tags$i(class = "bi bi-person-lines-fill",
+               style = "color:rgba(255,255,255,0.9); font-size:1.4rem;"),
+        div(
+          tags$span(res_name,
+                    style = "font-weight:700; font-size:1.2rem; color:#ffffff; display:block;"),
+          tags$span("New Interim Review",
+                    style = "font-size:0.8rem; color:rgba(255,255,255,0.7); font-weight:400;")
+        )
+      ),
+      size      = "xl",
+      easyClose = TRUE,
+      footer    = tagList(
+        actionButton("interim_save_btn", "Save",
+                     icon = icon("floppy-disk"), class = "btn-primary"),
+        modalButton("Cancel")
+      ),
+
+      # Widen the modal beyond xl default
+      tags$style(HTML(".modal-xl { max-width: 1300px !important; }")),
+
+      # ── History table ─────────────────────────────────────────────────────
+      tags$p(
+        style = "font-size:0.78rem; font-weight:700; color:#6c757d;
+                 text-transform:uppercase; letter-spacing:0.06em; margin-bottom:8px;",
+        tags$i(class = "bi bi-clock-history me-1"), "Prior CCC Notes"
+      ),
+      history_table_ui,
+
+      # ── ABIM risk + MKSAP ─────────────────────────────────────────────────
+      div(style = "margin-top:12px;", abim_ui),
+
+      tags$hr(style = "margin: 16px 0 14px;"),
+
+      # ── New entry form ────────────────────────────────────────────────────
+      tags$p(
+        style = "font-size:0.78rem; font-weight:700; color:#6c757d;
+                 text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px;",
+        "New Interim Entry"
+      ),
+
+      textAreaInput("interim_progress_notes", "Discussion Summary:",
+                    value = "", rows = 4, width = "100%",
+                    placeholder = "Summary of the CCC discussion\u2026"),
+
+      tags$hr(style = "margin: 14px 0 12px;"),
+
+      # ── Action needed ─────────────────────────────────────────────────────
+      checkboxInput("interim_action_needed",
+                    tags$span(tags$strong("Action Needed")),
+                    value = FALSE),
+
+      conditionalPanel(
+        condition = "input.interim_action_needed == true",
+        div(
+          style = "background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px;
+                   padding:14px 16px; margin-top:8px; margin-bottom:12px;",
+
+          checkboxGroupInput("interim_status", "Action Status:",
+                             choices = status_choices, selected = NULL,
+                             inline = TRUE),
+
+          div(style = "margin-top:10px;",
+            checkboxGroupInput("interim_action", "Action Required:",
+                               choices = action_choices, selected = NULL,
+                               inline = TRUE)
+          ),
+
+          div(style = "margin-top:10px;",
+            textAreaInput("interim_followup_notes", "Follow-up Action Item:",
+                          value = "", rows = 2, width = "100%",
+                          placeholder = "Specific follow-up item\u2026")
+          ),
+
+          div(style = "margin-top:6px;",
+            fluidRow(column(width = 7,
+              textInput("interim_person_resp", "Person Responsible:",
+                        value = "", width = "100%",
+                        placeholder = "Name or role\u2026")
+            ))
+          )
+        )
+      ),
+
+      # ── CCC Concern ───────────────────────────────────────────────────────
+      checkboxInput("interim_concern",
+                    tags$span(tags$strong("CCC Concern")),
+                    value = FALSE),
+
+      conditionalPanel(
+        condition = "input.interim_concern == true",
+        div(
+          style = "background:#fff5f5; border:1px solid #fed7d7; border-radius:6px;
+                   padding:14px 16px; margin-top:8px;",
+
+          if (length(competency_choices) > 0)
+            checkboxGroupInput("interim_competency", "Competency Area(s):",
+                               choices = competency_choices, selected = NULL,
+                               inline = TRUE)
+        )
+      )
+    ))
+
+    # Reset all form inputs to blank for this resident (clears cached values from prior session)
+    shinyjs::delay(150, {
+      updateTextAreaInput(session,      "interim_progress_notes", value = "")
+      updateCheckboxInput(session,      "interim_action_needed",  value = FALSE)
+      updateCheckboxInput(session,      "interim_concern",        value = FALSE)
+      updateCheckboxGroupInput(session, "interim_status",         selected = character(0))
+      updateCheckboxGroupInput(session, "interim_action",         selected = character(0))
+      updateCheckboxGroupInput(session, "interim_competency",     selected = character(0))
+      updateTextAreaInput(session,      "interim_followup_notes", value = "")
+      updateTextInput(session,          "interim_person_resp",    value = "")
+    })
+  })
+
+  # ── Save handler — always creates a new interim instance ─────────────────────
+  observeEvent(input$interim_save_btn, {
+    rid <- interim_edit_rid()
+    req(!is.null(rid))
+
+    action_needed <- isTRUE(input$interim_action_needed)
+
+    result <- submit_new_tracker_issue(
+      redcap_url   = REDCAP_CONFIG$url,
+      redcap_token = REDCAP_CONFIG$rdm_token,
+      record_id    = rid,
+      description  = input$interim_progress_notes,
+      actions      = if (action_needed) input$interim_action     else character(0),
+      status       = if (action_needed) input$interim_status     else character(0),
+      competency   = if (isTRUE(input$interim_concern)) input$interim_competency else character(0),
+      person_resp  = if (action_needed) input$interim_person_resp  else NULL,
+      notes        = if (action_needed) input$interim_followup_notes else NULL
+    )
+
+    if (isTRUE(result$success)) {
+      removeModal()
+      # Show a persistent "refreshing" notification, replace it once done
+      refresh_id <- showNotification(
+        tagList(icon("rotate"), " Saving & refreshing data\u2026"),
+        type = "message", duration = NULL, closeButton = FALSE
+      )
+      tryCatch({
+        app_data(load_ccc_data())
+        removeNotification(refresh_id)
+        showNotification(
+          tagList(icon("circle-check"), " Interim review saved."),
+          type = "message", duration = 3
+        )
+      }, error = function(e) {
+        removeNotification(refresh_id)
+        showNotification("Saved, but data refresh failed — please click Refresh Data.",
+                         type = "warning", duration = 6)
+      })
+    } else {
+      showNotification(paste("Save failed:", result$message), type = "error", duration = 10)
+    }
   })
 
   # ===========================================================================
@@ -2987,9 +3868,9 @@ create_server <- function(initial_data) {
   milestone_full_data <- reactiveVal(NULL)
   milestone_loading   <- reactiveVal(FALSE)
 
-  # Load full data (archived + active) the first time the tab is visited --------
-  observeEvent(input$main_mode, {
-    req(input$main_mode == "milestone_analysis")
+  # Load full data (archived + active) the first time the milestones section is visited
+  observeEvent(nav_state$current, {
+    req(nav_state$current == "milestones")
     if (!is.null(milestone_full_data())) return()   # already loaded
 
     milestone_loading(TRUE)

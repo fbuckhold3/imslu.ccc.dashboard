@@ -213,3 +213,9 @@ translate_checkbox_values <- function(data_dict, field_name, checked_cols) {
 
   return(paste(labels, collapse = ", "))
 }
+
+# Clean a raw REDCap string value (NA, "NA", leading/trailing whitespace → "")
+clean_str <- function(x) {
+  s <- trimws(as.character(x))
+  if (is.na(s) || s == "NA") "" else s
+}
