@@ -30,6 +30,22 @@ ui <- gmed::gmed_page(
         var modal = document.getElementById('imageModal');
         if (event.target == modal) modal.style.display = 'none';
       }
+
+      // ── Capture all unhandled JavaScript errors and send to R for logging ──
+      window.onerror = function(msg, src, line, col, err) {
+        try {
+          if (window.Shiny && Shiny.setInputValue) {
+            Shiny.setInputValue('js_error_log', {
+              message : msg || '(no message)',
+              source  : (src  || '').replace(/.*\\//, ''),
+              line    : line || 0,
+              col     : col  || 0,
+              stack   : (err && err.stack) ? err.stack.substring(0, 500) : ''
+            }, {priority: 'event'});
+          }
+        } catch(e) {}
+        return false;   // don't suppress the error
+      };
     ")),
 
     tags$style(HTML("
