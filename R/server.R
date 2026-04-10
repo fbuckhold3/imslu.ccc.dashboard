@@ -3291,10 +3291,13 @@ create_server <- function(initial_data) {
   # ===========================================================================
 
   output$tracker_ccc_review_table <- DT::renderDT({
+    tryCatch({
+    message("DIAG renderDT: starting")
     all_reviews <- tryCatch(
       get_ccc_review_all(app_data()),
       error = function(e) { warning("get_ccc_review_all failed: ", e$message); data.frame() }
     )
+    message("DIAG renderDT: got all_reviews rows=", if(is.null(all_reviews)) "NULL" else nrow(all_reviews))
 
     # ── Badge helper ──────────────────────────────────────────────────────────
     pill <- function(text, bg, fg = "#fff") {
@@ -3431,6 +3434,10 @@ create_server <- function(initial_data) {
       DT::formatStyle("Person",           fontSize = "0.95rem", color = "#4a5568") %>%
       DT::formatStyle("Competency",       fontSize = "0.88rem", color = "#6f42c1", fontStyle = "italic") %>%
       DT::formatStyle("PGY",              fontWeight = "600", fontSize = "0.95rem", color = "#0066a1")
+    }, error = function(e) {
+      message("DIAG renderDT ERROR: ", e$message)
+      DT::datatable(data.frame(Error = paste("Table error:", e$message)))
+    })
   })
 
   # ===========================================================================
@@ -3440,10 +3447,12 @@ create_server <- function(initial_data) {
   interim_edit_rid <- reactiveVal(NULL)
 
   observeEvent(input$tracker_ccc_review_table_rows_selected, {
+    message("DIAG click observer: fired idx=", input$tracker_ccc_review_table_rows_selected)
     tryCatch({
     idx <- input$tracker_ccc_review_table_rows_selected
     req(length(idx) > 0)
 
+    message("DIAG click observer: idx=", idx, " building res_tbl")
     # Derive ordered resident list matching the table (all residents, sorted by name)
     res_tbl <- app_data()$residents %>%
       select(record_id, Resident = full_name) %>%
@@ -3708,6 +3717,7 @@ create_server <- function(initial_data) {
       status_choices <- c("Initiation" = "1", "Ongoing" = "2", "Resolved" = "3", "Recurring" = "4")
 
     # ── Modal (wider via inline CSS override) ────────────────────────────────
+    message("DIAG click observer: calling showModal for rid=", rid)
     showModal(modalDialog(
       title = div(
         style = "display:flex; align-items:center; gap:12px;",
@@ -3824,7 +3834,9 @@ create_server <- function(initial_data) {
       updateTextAreaInput(session,      "interim_followup_notes", value = "")
       updateTextInput(session,          "interim_person_resp",    value = "")
     })
+    message("DIAG click observer: completed successfully")
     }, error = function(e) {
+      message("DIAG click observer ERROR: ", e$message)
       showNotification(
         paste("Could not open review form:", conditionMessage(e)),
         type = "error", duration = 8
