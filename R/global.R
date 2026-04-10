@@ -353,8 +353,22 @@ refresh_ccc_review <- function(
     stop("REDCap fetch of ccc_review failed: ", result$outcome_message)
   }
 
-  # Filter archived residents using the same logic as load_ccc_data
   fresh <- result$data
+
+  # When fetching a single form, REDCap omits the redcap_repeat_instrument
+  # column (it's implicit). Add it back so downstream filters work.
+  if (!"redcap_repeat_instrument" %in% names(fresh))
+    fresh$redcap_repeat_instrument <- "ccc_review"
+
+  # Ensure redcap_repeat_instance is present too
+  if (!"redcap_repeat_instance" %in% names(fresh))
+    fresh$redcap_repeat_instance <- NA_integer_
+
+  # Drop base-record rows (no instance number) — keep only repeating rows
+  fresh <- fresh %>%
+    filter(!is.na(redcap_repeat_instance))
+
+  # Filter archived residents using the same logic as load_ccc_data
   if (!is.null(current_data$residents) &&
       "res_archive" %in% names(current_data$residents)) {
     archived <- current_data$residents %>%
