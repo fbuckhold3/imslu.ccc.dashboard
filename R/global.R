@@ -522,7 +522,7 @@ ccc_nav_blocks <- list(
   list(
     id    = "interim",
     label = "Interim Reviews",
-    icon  = "person-exclamation-fill",
+    icon  = "clipboard2-pulse-fill",
     desc  = "Ad hoc discussions & follow-up tracking"
   ),
   list(
