@@ -3430,6 +3430,7 @@ create_server <- function(initial_data) {
   interim_edit_rid <- reactiveVal(NULL)
 
   observeEvent(input$tracker_ccc_review_table_rows_selected, {
+    tryCatch({
     idx <- input$tracker_ccc_review_table_rows_selected
     req(length(idx) > 0)
 
@@ -3543,11 +3544,13 @@ create_server <- function(initial_data) {
     }
 
     # ── Access code + dashboard link ─────────────────────────────────────────
-    ac_val <- app_data()$residents %>%
-      filter(record_id == rid) %>%
-      pull(access_code)
-    ac_val <- if (length(ac_val) > 0 && !is.na(ac_val[1]) && nchar(trimws(ac_val[1])) > 0)
-      trimws(ac_val[1]) else ""
+    ac_val <- tryCatch({
+      res_row <- app_data()$residents %>% filter(record_id == rid)
+      if ("access_code" %in% names(res_row) && nrow(res_row) > 0) {
+        v <- res_row$access_code[1]
+        if (!is.na(v) && nchar(trimws(v)) > 0) trimws(v) else ""
+      } else ""
+    }, error = function(e) "")
     dash_url <- paste0(
       "https://fbuckhold3-imsluresidentdashboard.share.connect.posit.cloud",
       if (nchar(ac_val) > 0) paste0("?code=", ac_val) else ""
@@ -3811,6 +3814,12 @@ create_server <- function(initial_data) {
       updateTextAreaInput(session,      "interim_followup_notes", value = "")
       updateTextInput(session,          "interim_person_resp",    value = "")
     })
+    }, error = function(e) {
+      showNotification(
+        paste("Could not open review form:", conditionMessage(e)),
+        type = "error", duration = 8
+      )
+    }) # end tryCatch
   })
 
   # ── Save handler — always creates a new interim instance ─────────────────────
