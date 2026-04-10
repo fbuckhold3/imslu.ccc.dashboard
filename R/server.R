@@ -3407,6 +3407,8 @@ create_server <- function(initial_data) {
       selection = "single",
       rownames  = FALSE,
       escape    = FALSE,
+      server    = FALSE,   # client-side: row selection never round-trips through R,
+                           # avoids WebSocket crash when HTML badge cells are selected
       class     = "cell-border",
       options   = list(
         paging  = FALSE,
