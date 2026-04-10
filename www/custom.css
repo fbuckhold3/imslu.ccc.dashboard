@@ -369,8 +369,26 @@ table.dataTable.no-footer {
 }
 
 .modal-body {
-  padding: 1.4rem 1.75rem;
-  font-size: 1rem;
+  padding: 1.5rem 1.85rem;
+  font-size: 1.02rem;
+}
+
+/* Larger, clearer label text inside modals */
+.modal-body label,
+.modal-body .control-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.modal-body textarea,
+.modal-body input[type="text"] {
+  font-size: 0.97rem;
+}
+
+.modal-body .checkbox label,
+.modal-body .shiny-input-checkboxgroup label {
+  font-size: 0.93rem;
 }
 
 .modal-footer {

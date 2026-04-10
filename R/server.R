@@ -104,11 +104,11 @@ interim_section_ui <- function() {
       #tracker_ccc_review_table table.dataTable thead th {
         background: linear-gradient(135deg, #003d5c 0%, #0066a1 100%) !important;
         color: #ffffff !important;
-        font-size: 0.78rem !important;
+        font-size: 0.85rem !important;
         font-weight: 700 !important;
-        letter-spacing: 0.07em !important;
+        letter-spacing: 0.06em !important;
         text-transform: uppercase !important;
-        padding: 13px 16px !important;
+        padding: 14px 18px !important;
         border: none !important;
         white-space: nowrap;
       }
@@ -116,22 +116,24 @@ interim_section_ui <- function() {
 
       /* ── Body cells ── */
       #tracker_ccc_review_table table.dataTable tbody td {
-        padding: 11px 16px !important;
+        padding: 13px 18px !important;
         vertical-align: middle !important;
-        border-bottom: 1px solid #edf2f7 !important;
+        border-bottom: 1px solid #e8eef5 !important;
         border-right: none !important;
-        line-height: 1.45;
+        font-size: 0.95rem !important;
+        line-height: 1.5;
+        color: #2d3748;
       }
 
       /* ── Zebra rows ── */
       #tracker_ccc_review_table table.dataTable tbody tr:nth-child(odd)  td { background-color: #ffffff !important; }
-      #tracker_ccc_review_table table.dataTable tbody tr:nth-child(even) td { background-color: #f7fafd !important; }
+      #tracker_ccc_review_table table.dataTable tbody tr:nth-child(even) td { background-color: #f4f8fd !important; }
 
       /* ── Hover ── */
       #tracker_ccc_review_table table.dataTable tbody tr:hover td {
         background-color: #dbeafe !important;
         cursor: pointer;
-        transition: background-color 0.12s ease;
+        transition: background-color 0.15s ease;
       }
 
       /* ── Selected ── */
@@ -139,12 +141,19 @@ interim_section_ui <- function() {
         background-color: #bfdbfe !important;
       }
 
-      /* ── Search box ── */
-      #tracker_ccc_review_table .dataTables_filter input {
-        border: 1px solid #cbd5e0;
+      /* ── Search / length controls ── */
+      #tracker_ccc_review_table .dataTables_filter input,
+      #tracker_ccc_review_table .dataTables_length select {
+        border: 1.5px solid #cbd5e0;
         border-radius: 6px;
-        padding: 5px 10px;
+        padding: 6px 10px;
         font-size: 0.9rem;
+      }
+      #tracker_ccc_review_table .dataTables_filter label,
+      #tracker_ccc_review_table .dataTables_length label,
+      #tracker_ccc_review_table .dataTables_info {
+        font-size: 0.88rem;
+        color: #4a5568;
       }
     ")),
 
@@ -3542,6 +3551,38 @@ create_server <- function(initial_data) {
       round(100 / (1 + exp(-(p$b0 + p$b1 * pct))), 1)
     }
 
+    # ── Shared quick-links (always shown) ────────────────────────────────────
+    quick_links_ui <- div(
+      style = "display:flex; flex-direction:column; gap:8px; min-width:190px;",
+      # MKSAP button
+      tags$a(
+        href   = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
+        target = "_blank",
+        style  = paste0(
+          "display:flex; align-items:center; justify-content:center; gap:7px;",
+          "padding:9px 16px; border-radius:7px; font-size:0.88rem; font-weight:600;",
+          "color:#0066a1; background:#ebf8ff; border:1.5px solid #90cdf4;",
+          "text-decoration:none; white-space:nowrap; transition:background 0.15s;"
+        ),
+        tags$i(class = "bi bi-journal-medical", style = "font-size:1rem;"),
+        "MKSAP Tracker \u2197"
+      ),
+      # Resident dashboard button — prominent
+      tags$a(
+        href   = dash_url,
+        target = "_blank",
+        style  = paste0(
+          "display:flex; align-items:center; justify-content:center; gap:7px;",
+          "padding:9px 16px; border-radius:7px; font-size:0.88rem; font-weight:700;",
+          "color:#ffffff; background:linear-gradient(135deg,#003d5c 0%,#0066a1 100%);",
+          "border:none; text-decoration:none; white-space:nowrap;",
+          "box-shadow:0 2px 8px rgba(0,102,161,0.35); transition:opacity 0.15s;"
+        ),
+        tags$i(class = "bi bi-person-video3", style = "font-size:1rem;"),
+        paste0("Open ", res_name, "\u2019s Dashboard \u2197")
+      )
+    )
+
     abim_ui <- tryCatch({
       td <- app_data()$all_forms$test_data
       td_row <- if (!is.null(td)) td %>% filter(record_id == rid) else NULL
@@ -3553,74 +3594,79 @@ create_server <- function(initial_data) {
         )
         valid <- pcts[!is.na(pcts) & pcts > 0]
         if (length(valid) > 0) {
-          # Most recent (highest-numbered PGY) non-NA score
-          last_pgy <- names(valid)[length(valid)]
-          last_pct <- valid[[last_pgy]]
-          # Best pass probability across all available PGY years
+          last_pgy  <- names(valid)[length(valid)]
+          last_pct  <- valid[[last_pgy]]
           probs     <- sapply(names(valid), function(g) .ccc_pass_prob(valid[[g]], g))
           best_prob <- max(probs, na.rm = TRUE)
           risk_col  <- if (best_prob < 50) "#d32f2f" else if (best_prob < 75) "#e65100" else "#2e7d32"
+          risk_bg   <- if (best_prob < 50) "#fff5f5" else if (best_prob < 75) "#fffaf0" else "#f0fff4"
           risk_lbl  <- if (best_prob < 50) "High Risk" else if (best_prob < 75) "Moderate Risk" else "Low Risk"
 
           div(
-            style = "display:flex; align-items:stretch; gap:10px; flex-wrap:wrap;",
+            style = "display:flex; align-items:stretch; gap:12px; flex-wrap:wrap;",
             # ITE score card
-            div(style = paste0(
-                  "background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px;",
-                  "padding:8px 14px; min-width:130px;"),
-              tags$div(style = "font-size:0.68rem; font-weight:700; color:#6c757d;
-                                text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;",
-                       paste0("ITE Score \u00b7 PGY-", last_pgy)),
-              tags$div(style = "font-size:1.25rem; font-weight:700; color:#003d5c;",
-                       paste0(round(last_pct, 1), "%"))
+            div(
+              style = paste0(
+                "background:#f8faff; border:1.5px solid #c3d9f0; border-radius:8px;",
+                "padding:10px 18px; min-width:140px; flex:1;"
+              ),
+              tags$div(
+                style = "font-size:0.72rem; font-weight:700; color:#4a6785;
+                         text-transform:uppercase; letter-spacing:0.07em; margin-bottom:3px;",
+                paste0("ITE Score \u00b7 PGY-", last_pgy)
+              ),
+              tags$div(
+                style = "font-size:1.5rem; font-weight:800; color:#003d5c; line-height:1.1;",
+                paste0(round(last_pct, 1), "%")
+              ),
+              tags$div(
+                style = "font-size:0.75rem; color:#6c757d; margin-top:2px;",
+                "% correct on in-training exam"
+              )
             ),
             # Pass probability card
-            div(style = paste0(
-                  "background:", risk_col, "18; border:1px solid ", risk_col, "50;",
-                  "border-radius:6px; padding:8px 14px; min-width:160px;"),
-              tags$div(style = "font-size:0.68rem; font-weight:700; color:#6c757d;
-                                text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;",
-                       "P(Pass ABIM)"),
+            div(
+              style = paste0(
+                "background:", risk_bg, "; border:1.5px solid ", risk_col, "60;",
+                "border-radius:8px; padding:10px 18px; min-width:160px; flex:1;"
+              ),
               tags$div(
-                tags$span(style = paste0("font-size:1.25rem; font-weight:700; color:", risk_col, ";"),
-                          paste0(round(best_prob, 1), "%")),
-                tags$span(style = paste0("font-size:0.75rem; font-weight:600; color:", risk_col,
-                                         "; margin-left:6px;"),
-                          paste0("\u00b7 ", risk_lbl))
+                style = "font-size:0.72rem; font-weight:700; color:#4a6785;
+                         text-transform:uppercase; letter-spacing:0.07em; margin-bottom:3px;",
+                "P(Pass ABIM)"
+              ),
+              tags$div(
+                tags$span(
+                  style = paste0("font-size:1.5rem; font-weight:800; color:", risk_col, "; line-height:1.1;"),
+                  paste0(round(best_prob, 1), "%")
+                )
+              ),
+              div(
+                style = paste0(
+                  "display:inline-block; margin-top:4px; padding:2px 8px; border-radius:20px;",
+                  "background:", risk_col, "; color:#fff;",
+                  "font-size:0.72rem; font-weight:700; letter-spacing:0.04em;"
+                ),
+                risk_lbl
               )
             ),
-            # MKSAP link
-            div(style = "display:flex; align-items:center;",
-              tags$a(
-                href   = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
-                target = "_blank",
-                style  = paste0("font-size:0.82rem; color:#0066a1; text-decoration:none;",
-                                 "display:flex; align-items:center; gap:5px; padding:8px 12px;",
-                                 "border:1px solid #bee3f8; border-radius:6px; background:#ebf8ff;",
-                                 "white-space:nowrap;"),
-                tags$i(class = "bi bi-journal-medical"),
-                "MKSAP Tracker \u2197"
-              )
-            )
+            # Quick links column
+            quick_links_ui
           )
         } else {
-          # No ITE data — still show MKSAP link
-          tags$a(href = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
-                 target = "_blank",
-                 style = "font-size:0.82rem; color:#0066a1; text-decoration:none;",
-                 tags$i(class = "bi bi-journal-medical me-1"), "MKSAP Tracker \u2197")
+          div(style = "display:flex; align-items:center; gap:12px;",
+              div(style = "font-size:0.88rem; color:#6c757d; font-style:italic;",
+                  "No ITE data on file."),
+              quick_links_ui)
         }
       } else {
-        tags$a(href = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
-               target = "_blank",
-               style = "font-size:0.82rem; color:#0066a1; text-decoration:none;",
-               tags$i(class = "bi bi-journal-medical me-1"), "MKSAP Tracker \u2197")
+        div(style = "display:flex; align-items:center; gap:12px;",
+            div(style = "font-size:0.88rem; color:#6c757d; font-style:italic;",
+                "No ITE data on file."),
+            quick_links_ui)
       }
     }, error = function(e) {
-      tags$a(href = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
-             target = "_blank",
-             style = "font-size:0.82rem; color:#0066a1; text-decoration:none;",
-             tags$i(class = "bi bi-journal-medical me-1"), "MKSAP Tracker \u2197")
+      div(style = "display:flex; gap:12px;", quick_links_ui)
     })
 
     # ── Choices from data dict ───────────────────────────────────────────────
@@ -3637,24 +3683,14 @@ create_server <- function(initial_data) {
     # ── Modal (wider via inline CSS override) ────────────────────────────────
     showModal(modalDialog(
       title = div(
-        style = "display:flex; align-items:center; justify-content:space-between; width:100%;",
+        style = "display:flex; align-items:center; gap:12px;",
+        tags$i(class = "bi bi-person-lines-fill",
+               style = "color:rgba(255,255,255,0.9); font-size:1.4rem;"),
         div(
-          style = "display:flex; align-items:center; gap:10px;",
-          tags$i(class = "bi bi-person-plus-fill",
-                 style = "color:#0066a1; font-size:1.3rem;"),
-          tags$span(res_name, style = "font-weight:700; font-size:1.1rem; color:#003d5c;"),
+          tags$span(res_name,
+                    style = "font-weight:700; font-size:1.2rem; color:#ffffff; display:block;"),
           tags$span("New Interim Review",
-                    style = "font-size:0.82rem; color:#6c757d; font-weight:400; margin-left:6px;")
-        ),
-        tags$a(
-          href   = dash_url,
-          target = "_blank",
-          style  = paste0("font-size:0.78rem; color:#003d5c; text-decoration:none;",
-                           "border:1px solid #cdd5df; border-radius:5px; padding:5px 10px;",
-                           "background:#f8f9fa; white-space:nowrap; display:flex;",
-                           "align-items:center; gap:5px;"),
-          tags$i(class = "bi bi-box-arrow-up-right"),
-          "Open Dashboard"
+                    style = "font-size:0.8rem; color:rgba(255,255,255,0.7); font-weight:400;")
         )
       ),
       size      = "xl",
