@@ -3567,7 +3567,7 @@ create_server <- function(initial_data) {
               # Sanitize and truncate — removes control chars that break JSON/WS
               raw <- if (fl[[1]] %in% names(hr_row)) hr_row[[fl[[1]]]][1] else ""
               s   <- clean_str(raw)
-              s   <- gsub("[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", " ", s)  # strip ctrl chars
+              s   <- gsub("[[:cntrl:]]", " ", s)  # strip control characters (incl. null bytes)
               if (nchar(s) > 300) paste0(substr(s, 1, 300), "\u2026") else s
             }
             tags$td(style = paste0(td_style, " white-space:pre-wrap;"), val)
