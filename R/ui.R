@@ -55,13 +55,16 @@ ui <- gmed::gmed_page(
         } catch(e2) {}
       });
 
-      // ── Shiny error events ─────────────────────────────────────────────────
+      // ── Shiny error events — captures output ID + message ─────────────────
+      // Shiny extends the jQuery event with {name: outputId, error: {message, call}}
       $(document).on('shiny:error', function(e) {
         try {
+          var outputId  = e.name  || '(unknown output)';
+          var errMsg    = (e.error && e.error.message) ? e.error.message : '(no message)';
           if (window.Shiny && Shiny.setInputValue) {
             Shiny.setInputValue('js_error_log', {
-              message : 'shiny:error ' + (e.message || ''),
-              source  : 'shiny-framework',
+              message : 'shiny:error output=' + outputId + ' | ' + errMsg,
+              source  : 'shiny-output',
               line    : 0, col: 0, stack: ''
             }, {priority: 'event'});
           }

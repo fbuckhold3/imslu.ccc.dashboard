@@ -247,6 +247,11 @@ milestones_section_ui <- function() {
 create_server <- function(initial_data) {
   function(input, output, session) {
 
+    # Log session lifecycle for disconnect diagnosis
+    session$onSessionEnded(function() {
+      message("SESSION_ENDED for session ", session$token)
+    })
+
     # Reactive values
     app_data <- reactiveVal(initial_data)
     selected_resident_id <- reactiveVal(NULL)
@@ -577,6 +582,7 @@ create_server <- function(initial_data) {
 
   # Dynamic coach filter buttons
   output$filter_coach_buttons <- renderUI({
+    tryCatch({
     current_period <- get_current_ccc_period()
     review_table <- get_ccc_review_table(app_data(), current_period)
 
@@ -602,10 +608,15 @@ create_server <- function(initial_data) {
     }
 
     tags$div(style = "margin: 10px 0;", buttons)
+    }, error = function(e) {
+      warning("filter_coach_buttons error: ", e$message)
+      tags$div(style = "margin: 10px 0;", actionButton("filter_coach_all", "All", class = "btn-sm"))
+    })
   })
 
   # Dynamic second reviewer filter buttons
   output$filter_second_buttons <- renderUI({
+    tryCatch({
     current_period <- get_current_ccc_period()
     review_table <- get_ccc_review_table(app_data(), current_period)
 
@@ -631,6 +642,10 @@ create_server <- function(initial_data) {
     }
 
     tags$div(style = "margin: 10px 0;", buttons)
+    }, error = function(e) {
+      warning("filter_second_buttons error: ", e$message)
+      tags$div(style = "margin: 10px 0;", actionButton("filter_second_all", "All", class = "btn-sm"))
+    })
   })
 
   # Observe coach button clicks
@@ -3549,8 +3564,10 @@ create_server <- function(initial_data) {
               }
               if (length(lbls) > 0) paste(lbls, collapse = ", ") else ""
             } else {
-              # Truncate long free-text fields — keeps modal HTML small
-              s <- clean_str(if (fl[[1]] %in% names(hr_row)) hr_row[[fl[[1]]]][1] else "")
+              # Sanitize and truncate — removes control chars that break JSON/WS
+              raw <- if (fl[[1]] %in% names(hr_row)) hr_row[[fl[[1]]]][1] else ""
+              s   <- clean_str(raw)
+              s   <- gsub("[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", " ", s)  # strip ctrl chars
               if (nchar(s) > 300) paste0(substr(s, 1, 300), "\u2026") else s
             }
             tags$td(style = paste0(td_style, " white-space:pre-wrap;"), val)
