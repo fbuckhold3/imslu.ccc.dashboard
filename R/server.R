@@ -3549,7 +3549,9 @@ create_server <- function(initial_data) {
               }
               if (length(lbls) > 0) paste(lbls, collapse = ", ") else ""
             } else {
-              clean_str(if (fl[[1]] %in% names(hr_row)) hr_row[[fl[[1]]]][1] else "")
+              # Truncate long free-text fields — keeps modal HTML small
+              s <- clean_str(if (fl[[1]] %in% names(hr_row)) hr_row[[fl[[1]]]][1] else "")
+              if (nchar(s) > 300) paste0(substr(s, 1, 300), "\u2026") else s
             }
             tags$td(style = paste0(td_style, " white-space:pre-wrap;"), val)
           })
@@ -3723,7 +3725,14 @@ create_server <- function(initial_data) {
     if (length(status_choices) == 0)
       status_choices <- c("Initiation" = "1", "Ongoing" = "2", "Resolved" = "3", "Recurring" = "4")
 
-    message("MODAL[8] calling showModal for ", res_name)
+    # Estimate modal HTML size — large messages can trip Posit Connect WS limits
+    tryCatch({
+      modal_html_size <- nchar(paste(capture.output(print(
+        modalDialog(title=res_name, history_table_ui, abim_ui)
+      )), collapse=""))
+      message(sprintf("MODAL[8] calling showModal for %s | est. modal HTML chars: %d",
+                      res_name, modal_html_size))
+    }, error = function(e) message("MODAL[8] calling showModal for ", res_name))
     showModal(modalDialog(
       title = div(
         style = "display:flex; align-items:center; gap:12px;",

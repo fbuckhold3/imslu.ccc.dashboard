@@ -46,6 +46,27 @@ ui <- gmed::gmed_page(
         } catch(e) {}
         return false;   // don't suppress the error
       };
+
+      // ── Shiny disconnect event — fires just before the page grays ──────────
+      $(document).on('shiny:disconnected', function(e) {
+        // Best-effort: store disconnect info in localStorage for next load
+        try {
+          localStorage.setItem('shiny_disconnect_at', new Date().toISOString());
+        } catch(e2) {}
+      });
+
+      // ── Shiny error events ─────────────────────────────────────────────────
+      $(document).on('shiny:error', function(e) {
+        try {
+          if (window.Shiny && Shiny.setInputValue) {
+            Shiny.setInputValue('js_error_log', {
+              message : 'shiny:error ' + (e.message || ''),
+              source  : 'shiny-framework',
+              line    : 0, col: 0, stack: ''
+            }, {priority: 'event'});
+          }
+        } catch(e2) {}
+      });
     ")),
 
     tags$style(HTML("
