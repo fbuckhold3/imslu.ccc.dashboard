@@ -3519,6 +3519,110 @@ create_server <- function(initial_data) {
       )
     }
 
+    # ── Access code + dashboard link ─────────────────────────────────────────
+    ac_val <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      pull(access_code)
+    ac_val <- if (length(ac_val) > 0 && !is.na(ac_val[1]) && nchar(trimws(ac_val[1])) > 0)
+      trimws(ac_val[1]) else ""
+    dash_url <- paste0(
+      "https://fbuckhold3-imsluresidentdashboard.share.connect.posit.cloud",
+      if (nchar(ac_val) > 0) paste0("?code=", ac_val) else ""
+    )
+
+    # ── ABIM risk (nomogram: McDonald et al. 2020) ───────────────────────────
+    .ccc_pass_prob <- function(pct, pgy) {
+      params <- list(
+        `1` = list(b0 = -7.0641,  b1 = 0.1811),
+        `2` = list(b0 = -8.1445,  b1 = 0.1733),
+        `3` = list(b0 = -11.9491, b1 = 0.2173)
+      )
+      p <- params[[as.character(pgy)]]
+      if (is.null(p)) return(NA_real_)
+      round(100 / (1 + exp(-(p$b0 + p$b1 * pct))), 1)
+    }
+
+    abim_ui <- tryCatch({
+      td <- app_data()$all_forms$test_data
+      td_row <- if (!is.null(td)) td %>% filter(record_id == rid) else NULL
+      if (!is.null(td_row) && nrow(td_row) > 0) {
+        pcts <- c(
+          "1" = suppressWarnings(as.numeric(td_row$pgy1_tot_correct[1])),
+          "2" = suppressWarnings(as.numeric(td_row$pgy2_tot_correct[1])),
+          "3" = suppressWarnings(as.numeric(td_row$pgy3_tot_correct[1]))
+        )
+        valid <- pcts[!is.na(pcts) & pcts > 0]
+        if (length(valid) > 0) {
+          # Most recent (highest-numbered PGY) non-NA score
+          last_pgy <- names(valid)[length(valid)]
+          last_pct <- valid[[last_pgy]]
+          # Best pass probability across all available PGY years
+          probs     <- sapply(names(valid), function(g) .ccc_pass_prob(valid[[g]], g))
+          best_prob <- max(probs, na.rm = TRUE)
+          risk_col  <- if (best_prob < 50) "#d32f2f" else if (best_prob < 75) "#e65100" else "#2e7d32"
+          risk_lbl  <- if (best_prob < 50) "High Risk" else if (best_prob < 75) "Moderate Risk" else "Low Risk"
+
+          div(
+            style = "display:flex; align-items:stretch; gap:10px; flex-wrap:wrap;",
+            # ITE score card
+            div(style = paste0(
+                  "background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px;",
+                  "padding:8px 14px; min-width:130px;"),
+              tags$div(style = "font-size:0.68rem; font-weight:700; color:#6c757d;
+                                text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;",
+                       paste0("ITE Score \u00b7 PGY-", last_pgy)),
+              tags$div(style = "font-size:1.25rem; font-weight:700; color:#003d5c;",
+                       paste0(round(last_pct, 1), "%"))
+            ),
+            # Pass probability card
+            div(style = paste0(
+                  "background:", risk_col, "18; border:1px solid ", risk_col, "50;",
+                  "border-radius:6px; padding:8px 14px; min-width:160px;"),
+              tags$div(style = "font-size:0.68rem; font-weight:700; color:#6c757d;
+                                text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px;",
+                       "P(Pass ABIM)"),
+              tags$div(
+                tags$span(style = paste0("font-size:1.25rem; font-weight:700; color:", risk_col, ";"),
+                          paste0(round(best_prob, 1), "%")),
+                tags$span(style = paste0("font-size:0.75rem; font-weight:600; color:", risk_col,
+                                         "; margin-left:6px;"),
+                          paste0("\u00b7 ", risk_lbl))
+              )
+            ),
+            # MKSAP link
+            div(style = "display:flex; align-items:center;",
+              tags$a(
+                href   = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
+                target = "_blank",
+                style  = paste0("font-size:0.82rem; color:#0066a1; text-decoration:none;",
+                                 "display:flex; align-items:center; gap:5px; padding:8px 12px;",
+                                 "border:1px solid #bee3f8; border-radius:6px; background:#ebf8ff;",
+                                 "white-space:nowrap;"),
+                tags$i(class = "bi bi-journal-medical"),
+                "MKSAP Tracker \u2197"
+              )
+            )
+          )
+        } else {
+          # No ITE data — still show MKSAP link
+          tags$a(href = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
+                 target = "_blank",
+                 style = "font-size:0.82rem; color:#0066a1; text-decoration:none;",
+                 tags$i(class = "bi bi-journal-medical me-1"), "MKSAP Tracker \u2197")
+        }
+      } else {
+        tags$a(href = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
+               target = "_blank",
+               style = "font-size:0.82rem; color:#0066a1; text-decoration:none;",
+               tags$i(class = "bi bi-journal-medical me-1"), "MKSAP Tracker \u2197")
+      }
+    }, error = function(e) {
+      tags$a(href = "https://mksap.acponline.org/login?forward=%2Ftracker#/",
+             target = "_blank",
+             style = "font-size:0.82rem; color:#0066a1; text-decoration:none;",
+             tags$i(class = "bi bi-journal-medical me-1"), "MKSAP Tracker \u2197")
+    })
+
     # ── Choices from data dict ───────────────────────────────────────────────
     dd                 <- app_data()$data_dict
     action_choices     <- get_field_choices(dd, "ccc_action",        for_ui = TRUE)
@@ -3533,12 +3637,25 @@ create_server <- function(initial_data) {
     # ── Modal (wider via inline CSS override) ────────────────────────────────
     showModal(modalDialog(
       title = div(
-        style = "display:flex; align-items:center; gap:10px;",
-        tags$i(class = "bi bi-person-plus-fill",
-               style = "color:#0066a1; font-size:1.3rem;"),
-        tags$span(res_name, style = "font-weight:700; font-size:1.1rem; color:#003d5c;"),
-        tags$span("New Interim Review",
-                  style = "font-size:0.82rem; color:#6c757d; font-weight:400; margin-left:6px;")
+        style = "display:flex; align-items:center; justify-content:space-between; width:100%;",
+        div(
+          style = "display:flex; align-items:center; gap:10px;",
+          tags$i(class = "bi bi-person-plus-fill",
+                 style = "color:#0066a1; font-size:1.3rem;"),
+          tags$span(res_name, style = "font-weight:700; font-size:1.1rem; color:#003d5c;"),
+          tags$span("New Interim Review",
+                    style = "font-size:0.82rem; color:#6c757d; font-weight:400; margin-left:6px;")
+        ),
+        tags$a(
+          href   = dash_url,
+          target = "_blank",
+          style  = paste0("font-size:0.78rem; color:#003d5c; text-decoration:none;",
+                           "border:1px solid #cdd5df; border-radius:5px; padding:5px 10px;",
+                           "background:#f8f9fa; white-space:nowrap; display:flex;",
+                           "align-items:center; gap:5px;"),
+          tags$i(class = "bi bi-box-arrow-up-right"),
+          "Open Dashboard"
+        )
       ),
       size      = "xl",
       easyClose = TRUE,
@@ -3558,6 +3675,9 @@ create_server <- function(initial_data) {
         tags$i(class = "bi bi-clock-history me-1"), "Prior CCC Notes"
       ),
       history_table_ui,
+
+      # ── ABIM risk + MKSAP ─────────────────────────────────────────────────
+      div(style = "margin-top:12px;", abim_ui),
 
       tags$hr(style = "margin: 16px 0 14px;"),
 
