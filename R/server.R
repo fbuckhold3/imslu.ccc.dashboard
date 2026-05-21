@@ -2528,17 +2528,18 @@ create_server <- function(initial_data) {
 
   output$adhoc_radar_plot <- plotly::renderPlotly({
     mtype <- adhoc_radar_type()
-    req(mtype)
+    if (is.null(mtype)) return(plotly::plotly_empty())
+
     res <- switch(mtype,
       "prog"  = adhoc_prog_miles(),
       "self"  = adhoc_self_miles(),
       "acgme" = adhoc_acgme_miles()
     )
-    req(!is.null(res), nrow(res$df) > 0)
+    if (is.null(res) || nrow(res$df) == 0) return(plotly::plotly_empty())
 
     row     <- res$df
     present <- ms_fields_ordered[ms_fields_ordered %in% names(row)]
-    req(length(present) > 0)
+    if (length(present) == 0) return(plotly::plotly_empty())
 
     labels <- sapply(present, map_field_to_display)
     scores <- suppressWarnings(as.numeric(sapply(present, function(f) row[[f]][1])))
@@ -2594,8 +2595,8 @@ create_server <- function(initial_data) {
         margin        = list(l = 40, r = 40, t = 30, b = 50)
       )
   })
-  # Pre-render even when modal is not open so chart appears instantly on click
-  outputOptions(output, "adhoc_radar_plot", suspendWhenHidden = FALSE)
+  # Note: suspendWhenHidden removed — pre-rendering caused session crashes on startup
+  # (plotly widget doesn't tolerate shiny.silent.error from req() at init time)
 
   # Ad Hoc Action Data Table
   output$adhoc_action_data_table <- DT::renderDT({
