@@ -29,10 +29,11 @@ future::plan(future::multisession)
 rdm_data <- load_ccc_phase1()
 
 # Phase 2: full data loaded ONCE at server startup in a background worker.
-# All sessions share this result via .server_full_data / .server_load_complete.
-# Sessions poll every 3 seconds and swap in the full dataset when ready.
-.server_full_data    <- rdm_data   # starts as Phase 1 data
-.server_load_complete <- FALSE
+# server_state is an explicit environment passed to create_server so all
+# sessions can read it without relying on lexical scoping across source() calls.
+server_state <- new.env(parent = emptyenv())
+server_state$full_data     <- rdm_data
+server_state$load_complete <- FALSE
 
 local({
   rdm_url   <- REDCAP_CONFIG$url
@@ -44,8 +45,8 @@ local({
     httr::set_config(httr::config(ssl_verifypeer = FALSE, ssl_verifyhost = FALSE))
     load_ccc_data(redcap_url = rdm_url, rdm_token = rdm_token)
   }) %...>% (function(full_data) {
-    .server_full_data    <<- full_data
-    .server_load_complete <<- TRUE
+    server_state$full_data     <- full_data
+    server_state$load_complete <- TRUE
     message("[Phase 2] Server-level full data loaded at ",
             format(Sys.time(), "%H:%M:%S"))
   }) %...!% (function(err) {
@@ -57,7 +58,7 @@ local({
 source("R/server.R")      # Server logic
 
 # Create server function with data
-server <- create_server(rdm_data)
+server <- create_server(rdm_data, server_state)
 
 # Run the app
 shinyApp(ui = ui, server = server)

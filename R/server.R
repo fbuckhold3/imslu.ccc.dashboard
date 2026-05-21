@@ -244,7 +244,7 @@ milestones_section_ui <- function() {
 
 # ──────────────────────────────────────────────────────────────────────────────
 
-create_server <- function(initial_data) {
+create_server <- function(initial_data, server_state = NULL) {
   function(input, output, session) {
 
     # Log session lifecycle for disconnect diagnosis
@@ -274,14 +274,17 @@ create_server <- function(initial_data) {
 
     # ── Phase 2 polling ─────────────────────────────────────────────────────
     # Phase 2 runs ONCE at server startup (app.R), shared across all sessions.
-    # Each session polls every 3 sec and swaps in full data when ready.
-    observe({
-      invalidateLater(3000)
-      if (isTRUE(.server_load_complete) && !isTRUE(app_data()$full_load_complete)) {
-        app_data(.server_full_data)
-        message("[Phase 2] Session ", session$token, " received full data")
-      }
-    })
+    # server_state is an explicit env passed from app.R — no lexical scoping
+    # issues across source() boundaries on Connect.
+    if (!is.null(server_state)) {
+      observe({
+        invalidateLater(3000)
+        if (isTRUE(server_state$load_complete) && !isTRUE(app_data()$full_load_complete)) {
+          app_data(server_state$full_data)
+          message("[Phase 2] Session ", session$token, " received full data")
+        }
+      })
+    }
 
   # ===========================================================================
   # AUTHENTICATION
