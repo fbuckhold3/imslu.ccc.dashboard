@@ -296,13 +296,13 @@ create_server <- function(initial_data) {
         library(lubridate)
         httr::set_config(httr::config(ssl_verifypeer = FALSE, ssl_verifyhost = FALSE))
         load_ccc_data(redcap_url = rdm_url, rdm_token = rdm_token)
-      }) %...>% function(full_data) {
+      }) %...>% (function(full_data) {
         app_data(full_data)
         message("[Phase 2] Full data loaded for session ", session$token)
-      } %...!% function(err) {
+      }) %...!% (function(err) {
         phase2_done(FALSE)   # allow retry on next navigation
         message("[Phase 2] Load failed: ", err$message)
-      }
+      })
     }, once = TRUE, ignoreInit = TRUE)
 
   # ===========================================================================
