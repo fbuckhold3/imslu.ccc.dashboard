@@ -272,6 +272,39 @@ create_server <- function(initial_data) {
     filter_coach <- reactiveVal("all")
     filter_second <- reactiveVal("all")
 
+    # Phase 2 flag — prevents duplicate background loads per session
+    phase2_done <- reactiveVal(FALSE)
+
+    # ── Background Phase 2 load ─────────────────────────────────────────────
+    # Fires once after login (nav_state leaves "login").
+    # Runs load_ccc_data() in a separate R process so the UI stays responsive.
+    # When complete, replaces app_data() with the full dataset.
+    observeEvent(nav_state$current, {
+      req(nav_state$current != "login")
+      req(!phase2_done(), !isTRUE(app_data()$full_load_complete))
+      phase2_done(TRUE)
+
+      rdm_url   <- REDCAP_CONFIG$url
+      rdm_token <- REDCAP_CONFIG$rdm_token
+
+      promises::future_promise({
+        source("R/global.R")           # makes load_ccc_data() available in worker
+        library(gmed)
+        library(dplyr)
+        library(purrr)
+        library(REDCapR)
+        library(lubridate)
+        httr::set_config(httr::config(ssl_verifypeer = FALSE, ssl_verifyhost = FALSE))
+        load_ccc_data(redcap_url = rdm_url, rdm_token = rdm_token)
+      }) %...>% function(full_data) {
+        app_data(full_data)
+        message("[Phase 2] Full data loaded for session ", session$token)
+      } %...!% function(err) {
+        phase2_done(FALSE)   # allow retry on next navigation
+        message("[Phase 2] Load failed: ", err$message)
+      }
+    }, once = TRUE, ignoreInit = TRUE)
+
   # ===========================================================================
   # AUTHENTICATION
   # ===========================================================================
@@ -524,6 +557,9 @@ create_server <- function(initial_data) {
   observe({
     rid <- selected_resident_id()
     req(rid)
+
+    # Wait for Phase 2 — milestone_workflow needs the full all_forms dataset
+    req(isTRUE(app_data()$full_load_complete))
 
     # Already computed — nothing to do
     if (!is.null(app_data()$milestone_workflow)) return()

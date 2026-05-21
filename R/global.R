@@ -521,6 +521,205 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
 }
 
 # ==============================================================================
+# PHASE 1 FAST LOADER
+# Loads only what is needed to render the CCC review table (~4–6 sec).
+# Phase 2 (full data) is triggered in server.R as a background future after
+# the user logs in.
+# ==============================================================================
+
+# Parse REDCap "1, Label | 2, Label" choice string → named character vector
+.parse_choices <- function(choices_str) {
+  if (is.na(choices_str) || !nzchar(choices_str)) return(character(0))
+  pairs <- strsplit(choices_str, "\\|")[[1]]
+  result <- character(0)
+  for (pair in pairs) {
+    parts <- strsplit(trimws(pair), ",", fixed = TRUE)[[1]]
+    if (length(parts) >= 2) {
+      code  <- trimws(parts[1])
+      label <- trimws(paste(parts[-1], collapse = ","))
+      result[code] <- label
+    }
+  }
+  result
+}
+
+# Apply a named code→label map to a character column (vectorised, safe)
+.translate_codes <- function(x, code_map) {
+  x <- as.character(x)
+  hits <- !is.na(x) & x %in% names(code_map)
+  x[hits] <- code_map[x[hits]]
+  x
+}
+
+# Apply CCC-specific resident processing:
+#   type code → label + type_code preserved
+#   grad_yr code → year label
+#   current_period + current_period_num calculated
+#   full_name assembled
+.process_ccc_residents <- function(res_df, data_dict) {
+  if (is.null(res_df) || nrow(res_df) == 0) return(res_df)
+
+  # type translation
+  type_str <- data_dict %>%
+    filter(field_name == "type") %>%
+    pull(select_choices_or_calculations)
+  if (length(type_str) > 0 && !is.na(type_str[1])) {
+    type_map  <- .parse_choices(type_str[1])
+    res_df <- res_df %>%
+      mutate(type_code = type,
+             type      = .translate_codes(type, type_map))
+  } else {
+    res_df$type_code <- res_df$type
+  }
+
+  # grad_yr translation
+  gy_str <- data_dict %>%
+    filter(field_name == "grad_yr") %>%
+    pull(select_choices_or_calculations)
+  if (length(gy_str) > 0 && !is.na(gy_str[1])) {
+    gy_map <- .parse_choices(gy_str[1])
+    res_df <- res_df %>%
+      mutate(grad_yr = .translate_codes(grad_yr, gy_map))
+  }
+
+  # current_period + full_name
+  current_date <- Sys.Date()
+  res_df <- res_df %>%
+    rowwise() %>%
+    mutate(
+      current_period = tryCatch({
+        gn  <- suppressWarnings(as.numeric(grad_yr))
+        tn  <- suppressWarnings(as.numeric(type_code))
+        if (!is.na(gn) && !is.na(tn) && tn %in% c(1, 2)) {
+          pc <- gmed::calculate_pgy_and_period(grad_yr = gn, type = tn,
+                                               current_date = current_date)
+          if (isTRUE(pc$is_valid) && !is.na(pc$period_name)) pc$period_name
+          else NA_character_
+        } else NA_character_
+      }, error = function(e) NA_character_),
+      current_period_num = get_period_number(current_period),
+      full_name = if_else(
+        !is.na(first_name) & !is.na(last_name),
+        paste(first_name, last_name),
+        if_else(!is.na(name), name, paste("Resident", record_id))
+      )
+    ) %>%
+    ungroup()
+
+  res_df
+}
+
+# Fetch one repeating form, attach redcap_repeat_instrument, translate its
+# period field, and remove non-resident records.
+.fetch_ccc_form <- function(form_name, period_field, rdm_token, redcap_url,
+                             data_dict, active_ids = character(0)) {
+  result <- tryCatch(
+    REDCapR::redcap_read_oneshot(
+      redcap_uri   = redcap_url, token = rdm_token,
+      forms        = form_name,  raw_or_label = "raw", verbose = FALSE
+    ),
+    error = function(e) { warning(".fetch_ccc_form: ", form_name, " — ", e$message); NULL }
+  )
+  if (is.null(result) || !isTRUE(result$success)) return(data.frame())
+
+  df <- result$data
+  if (!"redcap_repeat_instrument" %in% names(df)) df$redcap_repeat_instrument <- form_name
+  if (!"redcap_repeat_instance"   %in% names(df)) df$redcap_repeat_instance   <- NA_integer_
+
+  # Keep only repeating rows; restrict to active resident record IDs
+  df <- df[!is.na(df$redcap_repeat_instance), , drop = FALSE]
+  if (length(active_ids) > 0 && "record_id" %in% names(df))
+    df <- df[df$record_id %in% active_ids, , drop = FALSE]
+
+  # Translate the period field
+  if (!is.null(period_field) && period_field %in% names(df)) {
+    pf_str <- data_dict %>%
+      filter(field_name == !!period_field) %>%
+      pull(select_choices_or_calculations)
+    if (length(pf_str) > 0 && !is.na(pf_str[1])) {
+      pm <- .parse_choices(pf_str[1])
+      df[[period_field]] <- .translate_codes(df[[period_field]], pm)
+    }
+  }
+
+  df
+}
+
+#' Fast CCC startup loader (Phase 1)
+#'
+#' Fetches only what is needed to render the CCC review table:
+#' residents, data_dict, ccc_review, coach_rev, second_review, and cached
+#' milestone medians.  Returns a partial \code{app_data} list with
+#' \code{full_load_complete = FALSE}.  Phase 2 (\code{load_ccc_data()})
+#' is triggered as a background future in server.R after login.
+load_ccc_phase1 <- function(
+  redcap_url = REDCAP_CONFIG$url,
+  rdm_token  = REDCAP_CONFIG$rdm_token
+) {
+  t0 <- Sys.time()
+  message("[Phase 1] Starting fast startup load...")
+
+  # 1. Data dictionary
+  message("[Phase 1] Data dictionary...")
+  data_dict <- tryCatch(
+    gmed::get_evaluation_dictionary(token = rdm_token, url = redcap_url),
+    error = function(e) { warning("data_dict failed: ", e$message); NULL }
+  )
+
+  # 2. Residents (resident_data form only)
+  message("[Phase 1] Residents...")
+  res_raw <- gmed::load_rdm_residents_only(
+    rdm_token    = rdm_token,
+    redcap_url   = redcap_url,
+    raw_or_label = "raw"
+  )
+  if (is.null(res_raw) || nrow(res_raw) == 0)
+    stop("[Phase 1] load_rdm_residents_only returned nothing")
+
+  active_ids <- as.character(res_raw$record_id)
+
+  # 3. Translate and calculate periods
+  message("[Phase 1] Processing residents...")
+  residents <- if (!is.null(data_dict)) {
+    .process_ccc_residents(res_raw, data_dict)
+  } else {
+    res_raw$type_code <- res_raw$type
+    res_raw
+  }
+
+  # 4. Three review forms needed for the completion table
+  message("[Phase 1] Review forms...")
+  ccc_review    <- .fetch_ccc_form("ccc_review",    "ccc_session",  rdm_token, redcap_url, data_dict, active_ids)
+  coach_rev     <- .fetch_ccc_form("coach_rev",     "coach_period", rdm_token, redcap_url, data_dict, active_ids)
+  second_review <- .fetch_ccc_form("second_review", "second_period",rdm_token, redcap_url, data_dict, active_ids)
+
+  # 5. Cached milestone medians (~1 sec)
+  message("[Phase 1] Cached medians...")
+  cached_medians <- tryCatch(
+    gmed::load_cached_medians(rdm_token = rdm_token, redcap_url = redcap_url),
+    error = function(e) { message("Medians cache miss: ", e$message); NULL }
+  )
+
+  elapsed <- round(as.numeric(difftime(Sys.time(), t0, units = "secs")), 1)
+  message(sprintf("[Phase 1] Done in %.1f sec (%d residents)", elapsed, nrow(residents)))
+
+  list(
+    residents          = residents,
+    all_forms          = list(
+      ccc_review    = ccc_review,
+      coach_rev     = coach_rev,
+      second_review = second_review
+    ),
+    data_dict          = data_dict,
+    historical_medians = cached_medians,
+    milestone_workflow = NULL,
+    full_load_complete = FALSE,
+    rdm_token          = rdm_token,
+    redcap_url         = redcap_url
+  )
+}
+
+# ==============================================================================
 # NAVIGATION BLOCKS
 # ==============================================================================
 
