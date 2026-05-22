@@ -260,11 +260,24 @@ create_server <- function(initial_data, server_state = NULL) {
     filter_coach <- reactiveVal("all")
     filter_second <- reactiveVal("all")
 
-    # Toggle states for additional data panels in semi-annual review
-    show_eval_data     <- reactiveVal(FALSE)
-    show_plus_delta    <- reactiveVal(FALSE)
-    show_board_data    <- reactiveVal(FALSE)
-    show_mile_progress <- reactiveVal(FALSE)
+    # Single active toggle for exclusive tab-like behavior in detail panel
+    # Values: "eval" | "pd" | "board" | "mile" | NULL (all closed)
+    active_toggle <- reactiveVal(NULL)
+
+    # ── Existing CCC review data for the selected resident + current period ──
+    # Used to pre-populate form fields when a resident already has a draft.
+    selected_ccc_data <- reactive({
+      rid <- selected_resident_id()
+      if (is.null(rid)) return(data.frame())
+      resident_info <- app_data()$residents %>%
+        filter(record_id == rid) %>%
+        slice(1)
+      if (nrow(resident_info) == 0) return(data.frame())
+      tryCatch(
+        get_ccc_review_data(app_data(), rid, resident_info$current_period),
+        error = function(e) data.frame()
+      )
+    })
 
     # ── Phase 2 polling ─────────────────────────────────────────────────────
     # Phase 2 runs ONCE at server startup (app.R), shared across all sessions.
@@ -1040,30 +1053,28 @@ create_server <- function(initial_data, server_state = NULL) {
     show_list_view(FALSE)  # Switch to detail view
   })
 
-  # ── Reset toggles when switching residents ─────────────────────────────────
+  # ── Reset active toggle when switching residents ───────────────────────────
   observeEvent(selected_resident_id(), {
-    show_eval_data(FALSE)
-    show_plus_delta(FALSE)
-    show_board_data(FALSE)
-    show_mile_progress(FALSE)
+    active_toggle(NULL)
   })
 
-  # ── Toggle observers ────────────────────────────────────────────────────────
-  observeEvent(input$toggle_eval_data,     show_eval_data(!show_eval_data()))
-  observeEvent(input$toggle_plus_delta,    show_plus_delta(!show_plus_delta()))
-  observeEvent(input$toggle_board_data,    show_board_data(!show_board_data()))
-  observeEvent(input$toggle_mile_progress, show_mile_progress(!show_mile_progress()))
+  # ── Toggle observers (exclusive — clicking a new button auto-closes current) ──
+  observeEvent(input$toggle_eval_data,     active_toggle(if (identical(active_toggle(), "eval"))  NULL else "eval"))
+  observeEvent(input$toggle_plus_delta,    active_toggle(if (identical(active_toggle(), "pd"))    NULL else "pd"))
+  observeEvent(input$toggle_board_data,    active_toggle(if (identical(active_toggle(), "board")) NULL else "board"))
+  observeEvent(input$toggle_mile_progress, active_toggle(if (identical(active_toggle(), "mile"))  NULL else "mile"))
 
   # ── Toggle button CSS update (shinyjs — no re-render, avoids feedback loop) ──
   observe({
-    shinyjs::toggleClass("toggle_eval_data",     "btn-success",           condition = show_eval_data())
-    shinyjs::toggleClass("toggle_eval_data",     "btn-outline-secondary", condition = !show_eval_data())
-    shinyjs::toggleClass("toggle_plus_delta",    "btn-success",           condition = show_plus_delta())
-    shinyjs::toggleClass("toggle_plus_delta",    "btn-outline-secondary", condition = !show_plus_delta())
-    shinyjs::toggleClass("toggle_board_data",    "btn-success",           condition = show_board_data())
-    shinyjs::toggleClass("toggle_board_data",    "btn-outline-secondary", condition = !show_board_data())
-    shinyjs::toggleClass("toggle_mile_progress", "btn-success",           condition = show_mile_progress())
-    shinyjs::toggleClass("toggle_mile_progress", "btn-outline-secondary", condition = !show_mile_progress())
+    at <- active_toggle()
+    shinyjs::toggleClass("toggle_eval_data",     "btn-success",           condition = identical(at, "eval"))
+    shinyjs::toggleClass("toggle_eval_data",     "btn-outline-secondary", condition = !identical(at, "eval"))
+    shinyjs::toggleClass("toggle_plus_delta",    "btn-success",           condition = identical(at, "pd"))
+    shinyjs::toggleClass("toggle_plus_delta",    "btn-outline-secondary", condition = !identical(at, "pd"))
+    shinyjs::toggleClass("toggle_board_data",    "btn-success",           condition = identical(at, "board"))
+    shinyjs::toggleClass("toggle_board_data",    "btn-outline-secondary", condition = !identical(at, "board"))
+    shinyjs::toggleClass("toggle_mile_progress", "btn-success",           condition = identical(at, "mile"))
+    shinyjs::toggleClass("toggle_mile_progress", "btn-outline-secondary", condition = !identical(at, "mile"))
   })
 
   # ── Phase 2 loading banner ───────────────────────────────────────────────────
@@ -1085,7 +1096,7 @@ create_server <- function(initial_data, server_state = NULL) {
   # ── Conditional section UIs ─────────────────────────────────────────────────
 
   output$ccc_eval_section <- renderUI({
-    req(show_eval_data())
+    req(identical(active_toggle(), "eval"))
     req(selected_resident_id())
     if (!isTRUE(app_data()$full_load_complete)) {
       return(div(
@@ -1104,7 +1115,7 @@ create_server <- function(initial_data, server_state = NULL) {
   })
 
   output$ccc_pd_section <- renderUI({
-    req(show_plus_delta())
+    req(identical(active_toggle(), "pd"))
     req(selected_resident_id())
     if (!isTRUE(app_data()$full_load_complete)) {
       return(div(
@@ -1123,7 +1134,7 @@ create_server <- function(initial_data, server_state = NULL) {
   })
 
   output$ccc_boards_section <- renderUI({
-    req(show_board_data())
+    req(identical(active_toggle(), "board"))
     req(selected_resident_id())
     if (!isTRUE(app_data()$full_load_complete)) {
       return(div(
@@ -1140,7 +1151,7 @@ create_server <- function(initial_data, server_state = NULL) {
   })
 
   output$ccc_mile_section <- renderUI({
-    req(show_mile_progress())
+    req(identical(active_toggle(), "mile"))
     rid <- selected_resident_id()
     req(rid)
     tagList(
@@ -1345,6 +1356,22 @@ create_server <- function(initial_data, server_state = NULL) {
       filter(record_id == rid) %>%
       slice(1)
 
+    # ── Pre-populate helpers ─────────────────────────────────────────────────
+    # Fetch any existing CCC review row for this resident + period
+    existing_ccc <- selected_ccc_data()
+
+    # Safely extract a single text field; returns `default` if absent/NA/blank
+    fld <- function(col, default = "") {
+      if (nrow(existing_ccc) > 0 &&
+          col %in% names(existing_ccc) &&
+          !is.na(existing_ccc[[col]][1]) &&
+          nchar(trimws(as.character(existing_ccc[[col]][1]))) > 0) {
+        as.character(existing_ccc[[col]][1])
+      } else {
+        default
+      }
+    }
+
     tagList(
       # ── 1. Resident header + Ad Hoc button ──────────────────────────────────
       fluidRow(
@@ -1408,7 +1435,7 @@ create_server <- function(initial_data, server_state = NULL) {
             uiOutput("second_comments_display"),
             tags$br(),
             textAreaInput("ccc_ilp", "CCC ILP:",
-              value = "", rows = 4, width = "100%",
+              value = fld("ccc_ilp"), rows = 4, width = "100%",
               placeholder = "Enter CCC Individual Learning Plan...")
           )
         )
@@ -1482,7 +1509,7 @@ create_server <- function(initial_data, server_state = NULL) {
             title = "Milestone Discussion",
             radioButtons("ccc_mile", "Any changes to milestones?",
               choices  = c("No" = "0", "Yes" = "1"),
-              selected = "0", inline = TRUE),
+              selected = fld("ccc_mile", "0"), inline = TRUE),
             uiOutput("milestone_discussion_content")
           )
         )
@@ -1495,11 +1522,13 @@ create_server <- function(initial_data, server_state = NULL) {
           gmed::gmed_card(
             title = "Follow-up Issues",
             radioButtons("ccc_issues_yn", "Any Follow-up Issues?",
-              choices = c("No" = "0", "Yes" = "1"), selected = "0", inline = TRUE),
+              choices = c("No" = "0", "Yes" = "1"),
+              selected = if (nchar(fld("ccc_issues_follow_up")) > 0) "1" else "0",
+              inline = TRUE),
             conditionalPanel(
               condition = "input.ccc_issues_yn == '1'",
               textAreaInput("ccc_issues_follow_up", "Describe Follow-up Issues:",
-                value = "", rows = 3, width = "100%",
+                value = fld("ccc_issues_follow_up"), rows = 3, width = "100%",
                 placeholder = "Describe any issues requiring follow-up...")
             )
           )
@@ -1508,7 +1537,8 @@ create_server <- function(initial_data, server_state = NULL) {
           gmed::gmed_card(
             title = "Concerns",
             radioButtons("ccc_concern", "Any Concerns?",
-              choices = c("No" = "0", "Yes" = "1"), selected = "0", inline = TRUE),
+              choices = c("No" = "0", "Yes" = "1"),
+              selected = fld("ccc_concern", "0"), inline = TRUE),
             uiOutput("concern_content")
           )
         )
@@ -1625,11 +1655,21 @@ create_server <- function(initial_data, server_state = NULL) {
     rid <- selected_resident_id()
     req(rid)
 
+    # Pre-populate notes from any existing CCC review row
+    existing_notes <- {
+      ex <- selected_ccc_data()
+      if (nrow(ex) > 0 && "ccc_mile_notes" %in% names(ex) &&
+          !is.na(ex$ccc_mile_notes[1]) &&
+          nchar(trimws(as.character(ex$ccc_mile_notes[1]))) > 0)
+        as.character(ex$ccc_mile_notes[1])
+      else ""
+    }
+
     tagList(
       textAreaInput(
         "ccc_mile_notes",
         "CCC Milestone Notes:",
-        value = "",
+        value = existing_notes,
         rows = 3,
         width = "100%",
         placeholder = "Enter notes about milestone discussion..."
@@ -1657,14 +1697,36 @@ create_server <- function(initial_data, server_state = NULL) {
 
     # Get checkbox choices from data dictionary (for_ui = TRUE to get labels as names)
     competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency", for_ui = TRUE)
-    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action", for_ui = TRUE)
-    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
+    action_choices     <- get_field_choices(app_data()$data_dict, "ccc_action",     for_ui = TRUE)
+    status_choices     <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
+
+    # Pre-populate from existing CCC review row
+    ex <- selected_ccc_data()
+
+    existing_comments <- {
+      if (nrow(ex) > 0 && "ccc_comments" %in% names(ex) &&
+          !is.na(ex$ccc_comments[1]) &&
+          nchar(trimws(as.character(ex$ccc_comments[1]))) > 0)
+        as.character(ex$ccc_comments[1])
+      else ""
+    }
+
+    # Decode checked checkbox codes from ___code columns
+    decode_checks <- function(base, choices) {
+      if (nrow(ex) == 0) return(NULL)
+      codes <- names(choices)   # choice values (codes)
+      checked <- codes[vapply(codes, function(code) {
+        col <- paste0(base, "___", code)
+        isTRUE(col %in% names(ex) && !is.na(ex[[col]][1]) && ex[[col]][1] == "1")
+      }, logical(1))]
+      if (length(checked) == 0) NULL else checked
+    }
 
     tagList(
       textAreaInput(
         "ccc_comments",
         "CCC Comments:",
-        value = "",
+        value = existing_comments,
         rows = 3,
         width = "100%",
         placeholder = "Describe the concerns..."
@@ -1672,20 +1734,20 @@ create_server <- function(initial_data, server_state = NULL) {
       checkboxGroupInput(
         "ccc_competency",
         "Competency Areas:",
-        choices = competency_choices,
-        selected = NULL
+        choices  = competency_choices,
+        selected = decode_checks("ccc_competency", competency_choices)
       ),
       checkboxGroupInput(
         "ccc_action",
         "Action Required:",
-        choices = action_choices,
-        selected = NULL
+        choices  = action_choices,
+        selected = decode_checks("ccc_action", action_choices)
       ),
       checkboxGroupInput(
         "ccc_action_status",
         "Action Status:",
-        choices = status_choices,
-        selected = NULL
+        choices  = status_choices,
+        selected = decode_checks("ccc_action_status", status_choices)
       )
     )
   })
