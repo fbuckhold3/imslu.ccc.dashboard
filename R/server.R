@@ -32,25 +32,13 @@ semiannual_section_ui <- function() {
             tags$div(
               tags$strong("Review Status:"),
               tags$br(),
-              tags$div(
-                style = "margin: 10px 0;",
-                actionButton("filter_all",              "All",                    class = "btn-sm", style = "margin-right: 5px;"),
-                actionButton("filter_all_done",         "All Done",               class = "btn-sm", style = "margin-right: 5px;"),
-                actionButton("filter_coach_done",       "Coach Done",             class = "btn-sm", style = "margin-right: 5px;"),
-                actionButton("filter_coach_second_done","Coach & Second Done",    class = "btn-sm")
-              )
+              uiOutput("filter_status_buttons")
             ),
             tags$hr(style = "margin: 15px 0;"),
             tags$div(
               tags$strong("PGY Level:"),
               tags$br(),
-              tags$div(
-                style = "margin: 10px 0;",
-                actionButton("filter_pgy_all",   "All",    class = "btn-sm", style = "margin-right: 5px;"),
-                actionButton("filter_pgy_intern","Intern", class = "btn-sm", style = "margin-right: 5px;"),
-                actionButton("filter_pgy_pgy2",  "PGY2",  class = "btn-sm", style = "margin-right: 5px;"),
-                actionButton("filter_pgy_pgy3",  "PGY3",  class = "btn-sm")
-              )
+              uiOutput("filter_pgy_buttons")
             ),
             tags$hr(style = "margin: 15px 0;"),
             fluidRow(
@@ -308,11 +296,11 @@ create_server <- function(initial_data, server_state = NULL) {
     d
   })
 
-  gmed::mod_eval_table_server(
-    "ccc_eval_mod",
-    rdm_data  = .ccc_assessment_data,
-    record_id = selected_resident_id,
-    data_dict = .local_data_dict
+  gmed::mod_eval_feedback_server(
+    "ccc_ef_mod",
+    assessment_data = .ccc_assessment_data,
+    record_id       = selected_resident_id,
+    data_dict       = reactive({ app_data()$data_dict })
   )
 
   gmed::mod_plus_delta_table_server(
@@ -669,6 +657,35 @@ create_server <- function(initial_data, server_state = NULL) {
   observeEvent(input$filter_pgy_pgy2, { filter_pgy("PGY2") })
   observeEvent(input$filter_pgy_pgy3, { filter_pgy("PGY3") })
 
+  # ── Filter button renderUIs with active-state coloring ─────────────────────
+  .mk_filter_btn <- function(id, label, current_val, btn_val) {
+    active <- identical(current_val, btn_val)
+    actionButton(id, label,
+      class = if (active) "btn btn-success btn-sm" else "btn btn-outline-secondary btn-sm",
+      style = "margin: 3px 5px 3px 0;"
+    )
+  }
+
+  output$filter_status_buttons <- renderUI({
+    cur <- filter_completion()
+    div(style = "margin: 8px 0;",
+      .mk_filter_btn("filter_all",               "All",                 cur, "all"),
+      .mk_filter_btn("filter_all_done",           "All Done",            cur, "all_done"),
+      .mk_filter_btn("filter_coach_done",         "Coach Done",          cur, "coach_done"),
+      .mk_filter_btn("filter_coach_second_done",  "Coach & Second Done", cur, "coach_second_done")
+    )
+  })
+
+  output$filter_pgy_buttons <- renderUI({
+    cur <- filter_pgy()
+    div(style = "margin: 8px 0;",
+      .mk_filter_btn("filter_pgy_all",    "All",    cur, "all"),
+      .mk_filter_btn("filter_pgy_intern", "Intern", cur, "Intern"),
+      .mk_filter_btn("filter_pgy_pgy2",   "PGY2",   cur, "PGY2"),
+      .mk_filter_btn("filter_pgy_pgy3",   "PGY3",   cur, "PGY3")
+    )
+  })
+
   # Dynamic coach filter buttons
   output$filter_coach_buttons <- renderUI({
     tryCatch({
@@ -676,30 +693,21 @@ create_server <- function(initial_data, server_state = NULL) {
     review_table <- get_ccc_review_table(app_data(), current_period)
 
     if (nrow(review_table) == 0) {
-      return(tags$div(style = "margin: 10px 0;", actionButton("filter_coach_all", "All", class = "btn-sm")))
+      return(tags$div(style = "margin: 8px 0;",
+        .mk_filter_btn("filter_coach_all", "All", filter_coach(), "all")))
     }
 
-    # Get unique coach names
-    coaches <- unique(review_table$coach_name)
-    coaches <- coaches[!is.na(coaches) & coaches != ""]
-    coaches <- sort(coaches)
-
-    # Create buttons
-    buttons <- list(
-      actionButton("filter_coach_all", "All", class = "btn-sm", style = "margin: 5px 5px 5px 0;")
-    )
-
+    cur <- filter_coach()
+    coaches <- sort(unique(review_table$coach_name[!is.na(review_table$coach_name) & review_table$coach_name != ""]))
+    buttons <- list(.mk_filter_btn("filter_coach_all", "All", cur, "all"))
     for (coach in coaches) {
       btn_id <- paste0("filter_coach_", gsub("[^A-Za-z0-9]", "_", coach))
-      buttons <- c(buttons, list(
-        actionButton(btn_id, coach, class = "btn-sm", style = "margin: 5px 5px 5px 0;")
-      ))
+      buttons <- c(buttons, list(.mk_filter_btn(btn_id, coach, cur, coach)))
     }
-
-    tags$div(style = "margin: 10px 0;", buttons)
+    tags$div(style = "margin: 8px 0;", buttons)
     }, error = function(e) {
       warning("filter_coach_buttons error: ", e$message)
-      tags$div(style = "margin: 10px 0;", actionButton("filter_coach_all", "All", class = "btn-sm"))
+      tags$div(style = "margin: 8px 0;", actionButton("filter_coach_all", "All", class = "btn-outline-secondary btn-sm"))
     })
   })
 
@@ -710,30 +718,21 @@ create_server <- function(initial_data, server_state = NULL) {
     review_table <- get_ccc_review_table(app_data(), current_period)
 
     if (nrow(review_table) == 0) {
-      return(tags$div(style = "margin: 10px 0;", actionButton("filter_second_all", "All", class = "btn-sm")))
+      return(tags$div(style = "margin: 8px 0;",
+        .mk_filter_btn("filter_second_all", "All", filter_second(), "all")))
     }
 
-    # Get unique second reviewer names
-    second_revs <- unique(review_table$second_rev_name)
-    second_revs <- second_revs[!is.na(second_revs) & second_revs != ""]
-    second_revs <- sort(second_revs)
-
-    # Create buttons
-    buttons <- list(
-      actionButton("filter_second_all", "All", class = "btn-sm", style = "margin: 5px 5px 5px 0;")
-    )
-
+    cur <- filter_second()
+    second_revs <- sort(unique(review_table$second_rev_name[!is.na(review_table$second_rev_name) & review_table$second_rev_name != ""]))
+    buttons <- list(.mk_filter_btn("filter_second_all", "All", cur, "all"))
     for (second_rev in second_revs) {
       btn_id <- paste0("filter_second_", gsub("[^A-Za-z0-9]", "_", second_rev))
-      buttons <- c(buttons, list(
-        actionButton(btn_id, second_rev, class = "btn-sm", style = "margin: 5px 5px 5px 0;")
-      ))
+      buttons <- c(buttons, list(.mk_filter_btn(btn_id, second_rev, cur, second_rev)))
     }
-
-    tags$div(style = "margin: 10px 0;", buttons)
+    tags$div(style = "margin: 8px 0;", buttons)
     }, error = function(e) {
       warning("filter_second_buttons error: ", e$message)
-      tags$div(style = "margin: 10px 0;", actionButton("filter_second_all", "All", class = "btn-sm"))
+      tags$div(style = "margin: 8px 0;", actionButton("filter_second_all", "All", class = "btn-outline-secondary btn-sm"))
     })
   })
 
@@ -1018,28 +1017,31 @@ create_server <- function(initial_data, server_state = NULL) {
   observeEvent(input$toggle_board_data,    show_board_data(!show_board_data()))
   observeEvent(input$toggle_mile_progress, show_mile_progress(!show_mile_progress()))
 
-  # ── Toggle buttons UI (re-renders on state change to show active state) ─────
-  output$ccc_toggle_buttons <- renderUI({
-    eval_on  <- show_eval_data()
-    pd_on    <- show_plus_delta()
-    board_on <- show_board_data()
-    mile_on  <- show_mile_progress()
+  # ── Toggle button CSS update (shinyjs — no re-render, avoids feedback loop) ──
+  observe({
+    shinyjs::toggleClass("toggle_eval_data",     "btn-success",           condition = show_eval_data())
+    shinyjs::toggleClass("toggle_eval_data",     "btn-outline-secondary", condition = !show_eval_data())
+    shinyjs::toggleClass("toggle_plus_delta",    "btn-success",           condition = show_plus_delta())
+    shinyjs::toggleClass("toggle_plus_delta",    "btn-outline-secondary", condition = !show_plus_delta())
+    shinyjs::toggleClass("toggle_board_data",    "btn-success",           condition = show_board_data())
+    shinyjs::toggleClass("toggle_board_data",    "btn-outline-secondary", condition = !show_board_data())
+    shinyjs::toggleClass("toggle_mile_progress", "btn-success",           condition = show_mile_progress())
+    shinyjs::toggleClass("toggle_mile_progress", "btn-outline-secondary", condition = !show_mile_progress())
+  })
 
-    mk_btn <- function(id, label_txt, fa_icon, active) {
-      actionButton(
-        id,
-        label = tagList(icon(fa_icon), " ", label_txt),
-        class = if (active) "btn btn-success btn-sm" else "btn btn-outline-secondary btn-sm",
-        style = "margin-right: 8px; margin-bottom: 6px;"
-      )
-    }
-
+  # ── Phase 2 loading banner ───────────────────────────────────────────────────
+  output$phase2_loading_banner <- renderUI({
+    if (isTRUE(app_data()$full_load_complete)) return(NULL)
     div(
-      style = "margin-bottom: 4px;",
-      mk_btn("toggle_eval_data",     "Evaluations",         "star",          eval_on),
-      mk_btn("toggle_plus_delta",    "Plus/Delta",          "comments",      pd_on),
-      mk_btn("toggle_board_data",    "Board Predictor/ITE", "graduation-cap",board_on),
-      mk_btn("toggle_mile_progress", "Milestone History",   "chart-line",    mile_on)
+      class = "alert alert-info d-flex align-items-center gap-2",
+      style = "font-size:0.88rem; margin-bottom:12px;",
+      tags$span(class = "spinner-border spinner-border-sm", role = "status",
+                style = "flex-shrink:0;"),
+      tags$span(
+        tags$strong("Loading additional data in background."),
+        " Evaluations, Board Predictor, and Plus/Delta will appear when ready",
+        " (usually 15–30 seconds after opening a resident). This page will update automatically."
+      )
     )
   })
 
@@ -1047,13 +1049,13 @@ create_server <- function(initial_data, server_state = NULL) {
 
   output$ccc_eval_section <- renderUI({
     req(show_eval_data())
-    rid <- selected_resident_id()
-    req(rid)
+    req(selected_resident_id())
     if (!isTRUE(app_data()$full_load_complete)) {
       return(div(
-        class = "alert alert-info mt-3",
+        class = "alert alert-info mt-3 d-flex align-items-center gap-2",
         style = "font-size:0.9em;",
-        icon("spinner"), " Evaluation data loads in the background — check back in a moment."
+        tags$span(class = "spinner-border spinner-border-sm"),
+        " Evaluation data loading in background — will appear when ready."
       ))
     }
     if (is.null(app_data()$all_forms$assessment) ||
@@ -1061,18 +1063,18 @@ create_server <- function(initial_data, server_state = NULL) {
       return(p(class = "text-muted mt-2", icon("info-circle"),
                " No evaluation data found for this resident."))
     }
-    tagList(tags$hr(style = "margin: 12px 0 8px;"), gmed::mod_eval_table_ui("ccc_eval_mod"))
+    tagList(tags$hr(style = "margin: 12px 0 8px;"), gmed::mod_eval_feedback_ui("ccc_ef_mod"))
   })
 
   output$ccc_pd_section <- renderUI({
     req(show_plus_delta())
-    rid <- selected_resident_id()
-    req(rid)
+    req(selected_resident_id())
     if (!isTRUE(app_data()$full_load_complete)) {
       return(div(
-        class = "alert alert-info mt-3",
+        class = "alert alert-info mt-3 d-flex align-items-center gap-2",
         style = "font-size:0.9em;",
-        icon("spinner"), " Plus/Delta data loading in background..."
+        tags$span(class = "spinner-border spinner-border-sm"),
+        " Plus/Delta data loading in background — will appear when ready."
       ))
     }
     if (is.null(app_data()$all_forms$assessment) ||
@@ -1085,13 +1087,13 @@ create_server <- function(initial_data, server_state = NULL) {
 
   output$ccc_boards_section <- renderUI({
     req(show_board_data())
-    rid <- selected_resident_id()
-    req(rid)
+    req(selected_resident_id())
     if (!isTRUE(app_data()$full_load_complete)) {
       return(div(
-        class = "alert alert-info mt-3",
+        class = "alert alert-info mt-3 d-flex align-items-center gap-2",
         style = "font-size:0.9em;",
-        icon("spinner"), " Board/ITE data loading in background..."
+        tags$span(class = "spinner-border spinner-border-sm"),
+        " Board/ITE data loading in background — will appear when ready."
       ))
     }
     tagList(
@@ -1106,36 +1108,70 @@ create_server <- function(initial_data, server_state = NULL) {
     req(rid)
     tagList(
       tags$hr(style = "margin: 12px 0 8px;"),
-      plotly::plotlyOutput("ccc_milestone_plot", height = "420px")
+      div(
+        class = "d-flex align-items-center gap-3 mb-2 flex-wrap",
+        tags$span("Select milestone:", style = "font-size:0.9rem; font-weight:600; color:#003d5c; white-space:nowrap;"),
+        uiOutput("ccc_mile_selector")
+      ),
+      plotly::plotlyOutput("ccc_milestone_plot", height = "360px")
     )
   })
 
-  # ── Milestone progression plot ───────────────────────────────────────────────
+  # ── Milestone selector for individual tracking ───────────────────────────────
+  output$ccc_mile_selector <- renderUI({
+    long_data <- tryCatch(
+      get_milestone_longitudinal_data(app_data()),
+      error = function(e) NULL
+    )
+    rid <- selected_resident_id()
+    req(rid)
+
+    if (is.null(long_data) || nrow(long_data) == 0) return(NULL)
+    res_data <- long_data %>% filter(record_id == as.character(rid))
+    if (nrow(res_data) == 0) return(NULL)
+
+    milestones <- sort(unique(res_data$milestone))
+    # Build named choices: "PC1" -> "PC 1 (Patient Care)"
+    comp_labels <- c(
+      PC   = "Patient Care",
+      MK   = "Medical Knowledge",
+      SBP  = "Systems-Based Practice",
+      PBL  = "Practice-Based Learning",
+      PROF = "Professionalism",
+      ICS  = "Interpersonal & Communication"
+    )
+    make_label <- function(ms) {
+      prefix <- gsub("[0-9]+$", "", ms)
+      num    <- gsub("^[A-Z]+", "", ms)
+      comp   <- comp_labels[prefix]
+      if (!is.na(comp)) paste0(ms, " — ", comp, " ", num) else ms
+    }
+    choices <- setNames(milestones, vapply(milestones, make_label, character(1)))
+    selectInput("ccc_sel_mile", NULL, choices = choices, selected = milestones[1], width = "280px")
+  })
+
+  # ── Individual milestone progression plot ────────────────────────────────────
   output$ccc_milestone_plot <- plotly::renderPlotly({
     rid <- selected_resident_id()
     req(rid)
+
+    empty_plot <- function(msg) {
+      plotly::plot_ly() %>%
+        plotly::layout(
+          xaxis = list(visible = FALSE), yaxis = list(visible = FALSE),
+          annotations = list(list(
+            x = 0.5, y = 0.5, xref = "paper", yref = "paper",
+            text = msg, showarrow = FALSE, font = list(size = 14, color = "#6c757d")
+          ))
+        )
+    }
 
     long_data <- tryCatch(
       get_milestone_longitudinal_data(app_data()),
       error = function(e) NULL
     )
-
-    empty_plot <- function(msg) {
-      plotly::plot_ly() %>%
-        plotly::add_annotations(
-          text = msg, x = 0.5, y = 0.5,
-          xref = "paper", yref = "paper",
-          showarrow = FALSE,
-          font = list(size = 14, color = "#6c757d")
-        ) %>%
-        plotly::layout(
-          xaxis = list(visible = FALSE),
-          yaxis = list(visible = FALSE)
-        )
-    }
-
     if (is.null(long_data) || nrow(long_data) == 0) {
-      return(empty_plot("No milestone data available yet — full data loading in background."))
+      return(empty_plot("No milestone data available yet."))
     }
 
     res_data <- long_data %>% filter(record_id == as.character(rid))
@@ -1143,49 +1179,67 @@ create_server <- function(initial_data, server_state = NULL) {
       return(empty_plot("No milestone entries recorded for this resident."))
     }
 
-    res_name <- tryCatch({
-      app_data()$residents %>%
-        filter(record_id == rid) %>%
-        slice(1) %>%
-        pull(full_name)
-    }, error = function(e) "")
+    sel_mile <- input$ccc_sel_mile
+    if (is.null(sel_mile) || !sel_mile %in% res_data$milestone) {
+      sel_mile <- res_data$milestone[1]
+    }
+
+    plot_data <- res_data %>%
+      filter(milestone == sel_mile) %>%
+      arrange(period_num)
+
+    if (nrow(plot_data) == 0) {
+      return(empty_plot(paste("No data found for milestone", sel_mile)))
+    }
 
     period_order <- c("Mid Intern","End Intern","Mid PGY2","End PGY2","Mid PGY3","Graduating")
-
-    plotly::plot_ly(
-      data      = res_data,
-      x         = ~prog_mile_period,
-      y         = ~score,
-      color     = ~milestone,
-      type      = "scatter",
-      mode      = "lines+markers",
-      line      = list(width = 2),
-      marker    = list(size = 7)
-    ) %>%
-    plotly::layout(
-      title  = list(
-        text = sprintf("Milestone Progression — %s", res_name),
-        font = list(size = 14, color = "#2d3748")
-      ),
-      xaxis  = list(
-        title = "",
-        categoryorder = "array",
-        categoryarray = period_order,
-        tickangle = -20,
-        gridcolor = "#e9ecef"
-      ),
-      yaxis  = list(
-        title = "Score (1–9)",
-        range = c(0, 9),
-        dtick = 1,
-        gridcolor = "#e9ecef"
-      ),
-      legend = list(orientation = "v", x = 1.02, y = 1, font = list(size = 11)),
-      paper_bgcolor = "#ffffff",
-      plot_bgcolor  = "#f8f9fa",
-      margin = list(l = 55, r = 160, t = 50, b = 60),
-      font   = list(family = "Inter, sans-serif", size = 12)
+    res_name <- tryCatch(
+      app_data()$residents %>% filter(record_id == rid) %>% slice(1) %>% pull(full_name),
+      error = function(e) ""
     )
+
+    plotly::plot_ly() %>%
+      plotly::add_trace(
+        data   = plot_data,
+        x      = ~prog_mile_period,
+        y      = ~score,
+        type   = "scatter",
+        mode   = "lines+markers",
+        name   = sel_mile,
+        line   = list(color = "#0066a1", width = 2.5),
+        marker = list(color = "#0066a1", size = 9)
+      ) %>%
+      plotly::add_segments(
+        x = period_order[1], xend = tail(period_order, 1),
+        y = 7, yend = 7,
+        line = list(dash = "dot", color = "#e67e22", width = 2),
+        name = "Graduation Target (Level 7)",
+        showlegend = TRUE
+      ) %>%
+      plotly::layout(
+        title  = list(
+          text = sprintf("%s — %s", sel_mile, res_name),
+          font = list(size = 13, color = "#2d3748")
+        ),
+        xaxis  = list(
+          title         = "",
+          categoryorder = "array",
+          categoryarray = period_order,
+          tickangle     = -20,
+          gridcolor     = "#e9ecef"
+        ),
+        yaxis  = list(
+          title     = "Score (1–9)",
+          range     = c(0, 9),
+          dtick     = 1,
+          gridcolor = "#e9ecef"
+        ),
+        legend        = list(orientation = "h", x = 0, y = -0.25, font = list(size = 11)),
+        paper_bgcolor = "#ffffff",
+        plot_bgcolor  = "#f8f9fa",
+        margin        = list(l = 50, r = 20, t = 45, b = 80),
+        font          = list(family = "Inter, sans-serif", size = 12)
+      )
   })
 
   # ── Previous CCC ILP display ─────────────────────────────────────────────────
@@ -1246,94 +1300,102 @@ create_server <- function(initial_data, server_state = NULL) {
     rid <- selected_resident_id()
 
     if (is.null(rid)) {
-      return(
-        div(
-          class = "alert alert-info",
-          "Select a resident from the table above to view details and conduct CCC review"
-        )
-      )
+      return(div(class = "alert alert-info",
+        "Select a resident from the table above to view details and conduct CCC review"))
     }
 
-    # Get resident info
     resident_info <- app_data()$residents %>%
       filter(record_id == rid) %>%
       slice(1)
 
     tagList(
-      # Resident info header with Log Ad Hoc Meeting button
+      # ── 1. Resident header + Ad Hoc button ──────────────────────────────────
       fluidRow(
         column(width = 10,
           gmed::gmed_resident_panel(
             resident_name = resident_info$full_name,
-            level = resident_info$current_period,
-            coach = if ("coach_name" %in% names(resident_info)) resident_info$coach_name else NULL
+            level         = resident_info$current_period,
+            coach         = if ("coach_name" %in% names(resident_info)) resident_info$coach_name else NULL
           )
         ),
         column(width = 2,
           div(style = "padding-top: 15px; text-align: right;",
-            actionButton(
-              "log_adhoc_meeting",
-              "Log Ad Hoc Meeting",
-              icon  = icon("calendar-plus"),
-              class = "btn-warning"
-            )
+            actionButton("log_adhoc_meeting", "Log Ad Hoc Meeting",
+                         icon = icon("calendar-plus"), class = "btn-warning")
+          )
+        )
+      ),
+      uiOutput("phase2_loading_banner"),
+      tags$hr(),
+
+      # ── 2. Previous Reviews (3 col): Coach | Second | Action Items ──────────
+      h4("Previous Reviews", style = "margin-top: 20px; margin-bottom: 12px;"),
+      fluidRow(
+        column(width = 4,
+          gmed::gmed_card(
+            title = "Coach Review",
+            p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
+              "Current period coach review"),
+            uiOutput("coach_review_summary")
+          )
+        ),
+        column(width = 4,
+          gmed::gmed_card(
+            title = "Second Review",
+            p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
+              "Current period second reviewer"),
+            uiOutput("second_review_summary")
+          )
+        ),
+        column(width = 4,
+          gmed::gmed_card(
+            title = "Previous Action Items",
+            DT::DTOutput("action_data_table")
           )
         )
       ),
       tags$hr(),
 
-      h4("Milestone Review and Data Entry", style = "margin-top: 20px;"),
+      # ── 3. ILP Section ───────────────────────────────────────────────────────
+      h4("CCC Review Form", style = "margin-top: 20px;"),
+      p(class = "text-muted", style = "margin-bottom: 12px;",
+        "Complete the following fields based on the committee's discussion and review of the resident's performance."),
       fluidRow(
-        # Left column (1/3): Editable milestone table
-        column(
-          width = 4,
+        column(width = 12,
           gmed::gmed_card(
-            title = "Edit Program Milestones",
-            p(
-              class = "text-muted",
-              style = "font-size: 0.9em;",
-              "Edit milestone ratings (1-9 scale) for this period."
-            ),
-            DT::DTOutput("milestone_edit_table"),
+            title = "Individual Learning Plan",
+            uiOutput("prev_ccc_ilp_display"),
+            uiOutput("coach_ilp_display"),
             tags$br(),
-            actionButton(
-              "save_milestone_edits",
-              "Save Changes",
-              class = "btn-warning w-100",
-              icon = icon("save")
-            )
+            uiOutput("second_comments_display"),
+            tags$br(),
+            textAreaInput("ccc_ilp", "CCC ILP:",
+              value = "", rows = 4, width = "100%",
+              placeholder = "Enter CCC Individual Learning Plan...")
           )
-        ),
-
-        # Right column (2/3): Spider plots
-        column(
-          width = 8,
-          # Three spider plots stacked vertically
-          h5("ACGME Milestones (Previous Period)"),
-          plotly::plotlyOutput("plot_acgme_spider", height = "450px"),
-          br(),
-          h5("Program Milestones (Current Period)"),
-          plotly::plotlyOutput("plot_program_spider", height = "450px"),
-          br(),
-          h5("Self-Evaluation (Current Period)"),
-          plotly::plotlyOutput("plot_self_spider", height = "450px")
         )
       ),
       tags$br(),
 
-      # Additional Data Toggles — Evaluations / Plus-Delta / Board / Milestone History
+      # ── 4. Additional Resident Data (toggle buttons, no re-render) ──────────
       fluidRow(
-        column(
-          width = 12,
+        column(width = 12,
           gmed::gmed_card(
             title = "Additional Resident Data",
-            p(
-              class = "text-muted",
-              style = "font-size:0.88rem; margin-bottom: 10px;",
+            p(class = "text-muted", style = "font-size:0.88rem; margin-bottom: 10px;",
               "Toggle sections to view evaluation data, plus/delta feedback,",
-              " board predictor, and milestone progression."
+              " board predictor, and milestone progression."),
+            div(
+              style = "display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;",
+              actionButton("toggle_eval_data",     tagList(icon("star"),           " Evaluations"),
+                           class = "btn btn-outline-secondary btn-sm"),
+              actionButton("toggle_plus_delta",    tagList(icon("comments"),       " Plus/Delta"),
+                           class = "btn btn-outline-secondary btn-sm"),
+              actionButton("toggle_board_data",    tagList(icon("graduation-cap"), " Board Predictor/ITE"),
+                           class = "btn btn-outline-secondary btn-sm"),
+              actionButton("toggle_mile_progress", tagList(icon("chart-line"),     " Milestone History"),
+                           class = "btn btn-outline-secondary btn-sm")
             ),
-            uiOutput("ccc_toggle_buttons"),
             uiOutput("ccc_eval_section"),
             uiOutput("ccc_pd_section"),
             uiOutput("ccc_boards_section"),
@@ -1343,158 +1405,85 @@ create_server <- function(initial_data, server_state = NULL) {
       ),
       tags$br(),
 
-      # Milestone Descriptions - Full Width
+      # ── 5. Milestone Grid (2×2) ──────────────────────────────────────────────
+      h4("Milestones", style = "margin-top: 10px; margin-bottom: 12px;"),
       fluidRow(
-        column(
-          width = 12,
+        column(width = 6,
+          tags$p(class = "text-muted mb-1", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.06em;",
+                 "ACGME Milestones (Previous Period)"),
+          plotly::plotlyOutput("plot_acgme_spider", height = "380px")
+        ),
+        column(width = 6,
+          tags$p(class = "text-muted mb-1", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.06em;",
+                 "Program Milestones (Current Period)"),
+          plotly::plotlyOutput("plot_program_spider", height = "380px")
+        )
+      ),
+      tags$br(),
+      fluidRow(
+        column(width = 6,
+          tags$p(class = "text-muted mb-1", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.06em;",
+                 "Self-Evaluation (Current Period)"),
+          plotly::plotlyOutput("plot_self_spider", height = "380px")
+        ),
+        column(width = 6,
           gmed::gmed_card(
             title = "Milestone Descriptions",
-            p(
-              class = "text-muted",
-              style = "font-size: 0.9em;",
-              "Descriptions provided for specific competencies during this period."
-            ),
+            p(class = "text-muted", style = "font-size: 0.9em;",
+              "Descriptions provided for specific competencies during this period."),
             DT::DTOutput("milestone_descriptions_table")
           )
         )
       ),
-      hr(),
-
-      h4("Previous Reviews", style = "margin-top: 30px;"),
-      fluidRow(
-        column(
-          width = 6,
-          gmed::gmed_card(
-            title = "Coach Review",
-            uiOutput("coach_review_summary")
-          )
-        ),
-        column(
-          width = 6,
-          gmed::gmed_card(
-            title = "Second Review",
-            uiOutput("second_review_summary")
-          )
-        )
-      ),
-      tags$hr(),
-
-      h4("CCC Review Form", style = "margin-top: 30px;"),
-      p(
-        class = "text-muted",
-        "Complete the following fields based on the committee's discussion and review of the resident's performance."
-      ),
-
-      # Action Data Table
-      gmed::gmed_card(
-        title = "Previous Action Items",
-        DT::DTOutput("action_data_table")
-      ),
       tags$br(),
 
-      # ILP Section
+      # ── 6. Milestone Discussion (conditional edit table inside) ──────────────
       fluidRow(
-        column(
-          width = 12,
-          gmed::gmed_card(
-            title = "Individual Learning Plan",
-            uiOutput("prev_ccc_ilp_display"),
-            uiOutput("coach_ilp_display"),
-            tags$br(),
-            uiOutput("second_comments_display"),
-            tags$br(),
-            textAreaInput(
-              "ccc_ilp",
-              "CCC ILP:",
-              value = "",
-              rows = 4,
-              width = "100%",
-              placeholder = "Enter CCC Individual Learning Plan..."
-            )
-          )
-        )
-      ),
-
-      # Milestone Discussion
-      fluidRow(
-        column(
-          width = 12,
+        column(width = 12,
           gmed::gmed_card(
             title = "Milestone Discussion",
-            radioButtons(
-              "ccc_mile",
-              "Discuss Milestones?",
-              choices = c("No" = "0", "Yes" = "1"),
-              selected = "0",
-              inline = TRUE
-            ),
+            radioButtons("ccc_mile", "Any changes to milestones?",
+              choices  = c("No" = "0", "Yes" = "1"),
+              selected = "0", inline = TRUE),
             uiOutput("milestone_discussion_content")
           )
         )
       ),
+      tags$br(),
 
-      # Follow-up Issues
+      # ── 7. Follow-up | Concerns side by side ─────────────────────────────────
       fluidRow(
-        column(
-          width = 12,
+        column(width = 6,
           gmed::gmed_card(
             title = "Follow-up Issues",
-            radioButtons(
-              "ccc_issues_yn",
-              "Any Follow-up Issues?",
-              choices = c("No" = "0", "Yes" = "1"),
-              selected = "0",
-              inline = TRUE
-            ),
+            radioButtons("ccc_issues_yn", "Any Follow-up Issues?",
+              choices = c("No" = "0", "Yes" = "1"), selected = "0", inline = TRUE),
             conditionalPanel(
               condition = "input.ccc_issues_yn == '1'",
-              textAreaInput(
-                "ccc_issues_follow_up",
-                "Describe Follow-up Issues:",
-                value = "",
-                rows = 3,
-                width = "100%",
-                placeholder = "Describe any issues requiring follow-up..."
-              )
+              textAreaInput("ccc_issues_follow_up", "Describe Follow-up Issues:",
+                value = "", rows = 3, width = "100%",
+                placeholder = "Describe any issues requiring follow-up...")
             )
           )
-        )
-      ),
-
-      # Concerns
-      fluidRow(
-        column(
-          width = 12,
+        ),
+        column(width = 6,
           gmed::gmed_card(
             title = "Concerns",
-            radioButtons(
-              "ccc_concern",
-              "Any Concerns?",
-              choices = c("No" = "0", "Yes" = "1"),
-              selected = "0",
-              inline = TRUE
-            ),
+            radioButtons("ccc_concern", "Any Concerns?",
+              choices = c("No" = "0", "Yes" = "1"), selected = "0", inline = TRUE),
             uiOutput("concern_content")
           )
         )
       ),
-
       br(),
 
+      # ── 8. Submit ────────────────────────────────────────────────────────────
       fluidRow(
-        column(
-          width = 12,
-          actionButton(
-            "submit_ccc_review",
-            "Submit CCC Review",
-            class = "btn-primary btn-lg",
-            icon = icon("check")
-          ),
-          span(
-            class = "text-muted",
-            style = "margin-left: 15px;",
-            "This will save the review to REDCap"
-          )
+        column(width = 12,
+          actionButton("submit_ccc_review", "Submit CCC Review",
+                       class = "btn-primary btn-lg", icon = icon("check")),
+          span(class = "text-muted", style = "margin-left: 15px;",
+               "This will save the review to REDCap")
         )
       )
     )
@@ -1581,38 +1570,12 @@ create_server <- function(initial_data, server_state = NULL) {
   # Milestone Discussion Content
   output$milestone_discussion_content <- renderUI({
     req(input$ccc_mile)
-
-    if (input$ccc_mile == "0") {
-      return(NULL)
-    }
+    if (input$ccc_mile == "0") return(NULL)
 
     rid <- selected_resident_id()
     req(rid)
 
-    resident_info <- app_data()$residents %>%
-      filter(record_id == rid) %>%
-      slice(1)
-
-    second_data <- get_second_review_data(
-      app_data(),
-      rid,
-      resident_info$current_period
-    )
-
     tagList(
-      if (nrow(second_data) > 0 && "second_approve" %in% names(second_data)) {
-        if (!is.na(second_data$second_approve[1]) && second_data$second_approve[1] == "1") {
-          div(
-            p(strong("Second Reviewer Approved Milestones:"), " Yes")
-          )
-        } else if (!is.na(second_data$second_miles_comment[1]) && nchar(trimws(second_data$second_miles_comment[1])) > 0) {
-          div(
-            p(strong("Second Reviewer Milestone Comments:")),
-            p(second_data$second_miles_comment[1])
-          )
-        }
-      },
-      br(),
       textAreaInput(
         "ccc_mile_notes",
         "CCC Milestone Notes:",
@@ -1620,6 +1583,16 @@ create_server <- function(initial_data, server_state = NULL) {
         rows = 3,
         width = "100%",
         placeholder = "Enter notes about milestone discussion..."
+      ),
+      br(),
+      gmed::gmed_card(
+        title = "Edit Program Milestones",
+        p(class = "text-muted", style = "font-size: 0.9em;",
+          "Edit milestone ratings (1-9 scale) for this period."),
+        DT::DTOutput("milestone_edit_table"),
+        tags$br(),
+        actionButton("save_milestone_edits", "Save Changes",
+                     class = "btn-warning w-100", icon = icon("save"))
       )
     )
   })
@@ -1683,28 +1656,30 @@ create_server <- function(initial_data, server_state = NULL) {
     )
 
     if (nrow(coach_data) == 0) {
-      return(p(
-        class = "text-muted",
-        icon("info-circle"),
-        " No coach review available for this period"
-      ))
+      return(p(class = "text-muted fst-italic", style = "font-size:0.85rem;",
+               icon("info-circle"), " Not yet completed"))
     }
 
-    # Display key fields from coach review
+    # Compact summary: ILP + any notes/summary
+    ilp_text     <- if ("coach_ilp_final" %in% names(coach_data) && !is.na(coach_data$coach_ilp_final[1]) && nchar(trimws(coach_data$coach_ilp_final[1])) > 0) coach_data$coach_ilp_final[1] else NULL
+    summary_text <- if ("coach_summary"   %in% names(coach_data) && !is.na(coach_data$coach_summary[1])   && nchar(trimws(coach_data$coach_summary[1]))   > 0) coach_data$coach_summary[1]   else NULL
+    notes_text   <- if ("coach_notes"     %in% names(coach_data) && !is.na(coach_data$coach_notes[1])     && nchar(trimws(coach_data$coach_notes[1]))     > 0) coach_data$coach_notes[1]     else NULL
+
+    mk_row <- function(label, val) {
+      if (is.null(val)) return(NULL)
+      div(style = "margin-bottom:8px;",
+        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:#546e7a;",
+                  label),
+        p(style = "font-size:0.88rem; margin:2px 0 0 0; line-height:1.4;", val)
+      )
+    }
+
     tagList(
-      if ("coach_ilp_final" %in% names(coach_data) && !is.na(coach_data$coach_ilp_final[1])) {
-        div(
-          p(strong("Coach ILP:")),
-          p(coach_data$coach_ilp_final[1])
-        )
-      },
-      # Fallback: show completion status
-      if (!("coach_ilp_final" %in% names(coach_data))) {
-        p(
-          icon("check", class = "text-success"),
-          " Coach review completed for ", resident_info$current_period
-        )
-      }
+      if (!is.null(ilp_text))     mk_row("ILP",     ilp_text),
+      if (!is.null(summary_text)) mk_row("Summary", summary_text),
+      if (!is.null(notes_text))   mk_row("Notes",   notes_text),
+      if (is.null(ilp_text) && is.null(summary_text) && is.null(notes_text))
+        p(class = "text-success", style = "font-size:0.88rem;", icon("check"), " Completed")
     )
   })
 
@@ -1724,40 +1699,29 @@ create_server <- function(initial_data, server_state = NULL) {
     )
 
     if (nrow(second_data) == 0) {
-      return(p(
-        class = "text-muted",
-        icon("info-circle"),
-        " No second review available for this period"
-      ))
+      return(p(class = "text-muted fst-italic", style = "font-size:0.85rem;",
+               icon("info-circle"), " Not yet completed"))
     }
 
-    # Display key fields from second review
+    mk_row <- function(label, val) {
+      if (is.null(val) || is.na(val) || nchar(trimws(val)) == 0) return(NULL)
+      div(style = "margin-bottom:8px;",
+        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:#546e7a;",
+                  label),
+        p(style = "font-size:0.88rem; margin:2px 0 0 0; line-height:1.4;", val)
+      )
+    }
+
+    approved_val <- if ("second_approve" %in% names(second_data) && !is.na(second_data$second_approve[1]))
+      if (second_data$second_approve[1] == "1") "Yes — milestones approved" else "No" else NULL
+
     tagList(
-      if ("second_comments" %in% names(second_data) && !is.na(second_data$second_comments[1])) {
-        div(
-          p(strong("Comments:")),
-          p(second_data$second_comments[1])
-        )
-      },
-      if ("second_approve" %in% names(second_data) && !is.na(second_data$second_approve[1])) {
-        div(
-          p(strong("Milestones Approved:")),
-          p(if_else(second_data$second_approve[1] == "1", "Yes", "No"))
-        )
-      },
-      if ("second_miles_comment" %in% names(second_data) && !is.na(second_data$second_miles_comment[1])) {
-        div(
-          p(strong("Milestone Comments:")),
-          p(second_data$second_miles_comment[1])
-        )
-      },
-      # Fallback: show completion status if no specific fields available
-      if (!any(c("second_comments", "second_approve", "second_miles_comment") %in% names(second_data))) {
-        p(
-          icon("check", class = "text-success"),
-          " Second review completed for ", resident_info$current_period
-        )
-      }
+      mk_row("Comments",          if ("second_comments"      %in% names(second_data)) second_data$second_comments[1]      else NULL),
+      mk_row("Milestones",        approved_val),
+      mk_row("Milestone Notes",   if ("second_miles_comment" %in% names(second_data)) second_data$second_miles_comment[1] else NULL),
+      if (is.null(approved_val) &&
+          (!"second_comments" %in% names(second_data) || is.na(second_data$second_comments[1])))
+        p(class = "text-success", style = "font-size:0.88rem;", icon("check"), " Completed")
     )
   })
 
