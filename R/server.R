@@ -272,6 +272,12 @@ create_server <- function(initial_data, server_state = NULL) {
     filter_coach <- reactiveVal("all")
     filter_second <- reactiveVal("all")
 
+    # Toggle states for additional data panels in semi-annual review
+    show_eval_data     <- reactiveVal(FALSE)
+    show_plus_delta    <- reactiveVal(FALSE)
+    show_board_data    <- reactiveVal(FALSE)
+    show_mile_progress <- reactiveVal(FALSE)
+
     # ── Phase 2 polling ─────────────────────────────────────────────────────
     # Phase 2 runs ONCE at server startup (app.R), shared across all sessions.
     # server_state is an explicit env passed from app.R — no lexical scoping
@@ -285,6 +291,72 @@ create_server <- function(initial_data, server_state = NULL) {
         }
       })
     }
+
+  # ===========================================================================
+  # GMED MODULE SETUP (wired once; data reactives update on resident change)
+  # assessment form is available after Phase 2 load; gracefully returns NULL
+  # until then so toggles show a "loading" message.
+  # ===========================================================================
+
+  # Capture data_dict at startup (static — doesn't change)
+  .local_data_dict <- initial_data$data_dict
+
+  # Assessment data (all rows) — modules filter by record_id internally
+  .ccc_assessment_data <- reactive({
+    d <- app_data()$all_forms$assessment
+    if (is.null(d) || nrow(d) == 0) return(data.frame())
+    d
+  })
+
+  gmed::mod_eval_table_server(
+    "ccc_eval_mod",
+    rdm_data  = .ccc_assessment_data,
+    record_id = selected_resident_id,
+    data_dict = .local_data_dict
+  )
+
+  gmed::mod_plus_delta_table_server(
+    "ccc_pd_mod",
+    rdm_data  = .ccc_assessment_data,
+    record_id = selected_resident_id
+  )
+
+  gmed::mod_seval_boards_display_server(
+    "ccc_boards_mod",
+    current_s_eval = reactive({
+      rid <- selected_resident_id()
+      if (is.null(rid)) return(NULL)
+      res_info <- app_data()$residents %>% filter(record_id == rid) %>% slice(1)
+      if (nrow(res_info) == 0) return(NULL)
+      get_form_data_for_period(
+        app_data()$all_forms, "s_eval", rid, res_info$current_period
+      ) %>% slice(1)
+    }),
+    resident_info = reactive({
+      rid <- selected_resident_id()
+      if (is.null(rid)) return(NULL)
+      app_data()$residents %>% filter(record_id == rid) %>% slice(1)
+    }),
+    test_data = reactive({
+      rid <- selected_resident_id()
+      if (is.null(rid)) return(NULL)
+      td <- app_data()$all_forms$test_data
+      if (is.null(td) || nrow(td) == 0) return(NULL)
+      td %>% filter(record_id == rid)
+    }),
+    pgy = reactive({
+      rid <- selected_resident_id()
+      if (is.null(rid)) return(NA_integer_)
+      res_info <- app_data()$residents %>% filter(record_id == rid) %>% slice(1)
+      period <- if (nrow(res_info) > 0) res_info$current_period else NA_character_
+      if (is.na(period)) return(NA_integer_)
+      if (grepl("Intern",              period)) 1L
+      else if (grepl("PGY2",           period)) 2L
+      else if (grepl("PGY3|Graduating",period)) 3L
+      else NA_integer_
+    }),
+    data_dict = reactive({ app_data()$data_dict })
+  )
 
   # ===========================================================================
   # AUTHENTICATION
@@ -932,6 +1004,243 @@ create_server <- function(initial_data, server_state = NULL) {
     show_list_view(FALSE)  # Switch to detail view
   })
 
+  # ── Reset toggles when switching residents ─────────────────────────────────
+  observeEvent(selected_resident_id(), {
+    show_eval_data(FALSE)
+    show_plus_delta(FALSE)
+    show_board_data(FALSE)
+    show_mile_progress(FALSE)
+  })
+
+  # ── Toggle observers ────────────────────────────────────────────────────────
+  observeEvent(input$toggle_eval_data,     show_eval_data(!show_eval_data()))
+  observeEvent(input$toggle_plus_delta,    show_plus_delta(!show_plus_delta()))
+  observeEvent(input$toggle_board_data,    show_board_data(!show_board_data()))
+  observeEvent(input$toggle_mile_progress, show_mile_progress(!show_mile_progress()))
+
+  # ── Toggle buttons UI (re-renders on state change to show active state) ─────
+  output$ccc_toggle_buttons <- renderUI({
+    eval_on  <- show_eval_data()
+    pd_on    <- show_plus_delta()
+    board_on <- show_board_data()
+    mile_on  <- show_mile_progress()
+
+    mk_btn <- function(id, label_txt, fa_icon, active) {
+      actionButton(
+        id,
+        label = tagList(icon(fa_icon), " ", label_txt),
+        class = if (active) "btn btn-success btn-sm" else "btn btn-outline-secondary btn-sm",
+        style = "margin-right: 8px; margin-bottom: 6px;"
+      )
+    }
+
+    div(
+      style = "margin-bottom: 4px;",
+      mk_btn("toggle_eval_data",     "Evaluations",         "star",          eval_on),
+      mk_btn("toggle_plus_delta",    "Plus/Delta",          "comments",      pd_on),
+      mk_btn("toggle_board_data",    "Board Predictor/ITE", "graduation-cap",board_on),
+      mk_btn("toggle_mile_progress", "Milestone History",   "chart-line",    mile_on)
+    )
+  })
+
+  # ── Conditional section UIs ─────────────────────────────────────────────────
+
+  output$ccc_eval_section <- renderUI({
+    req(show_eval_data())
+    rid <- selected_resident_id()
+    req(rid)
+    if (!isTRUE(app_data()$full_load_complete)) {
+      return(div(
+        class = "alert alert-info mt-3",
+        style = "font-size:0.9em;",
+        icon("spinner"), " Evaluation data loads in the background — check back in a moment."
+      ))
+    }
+    if (is.null(app_data()$all_forms$assessment) ||
+        nrow(app_data()$all_forms$assessment) == 0) {
+      return(p(class = "text-muted mt-2", icon("info-circle"),
+               " No evaluation data found for this resident."))
+    }
+    tagList(tags$hr(style = "margin: 12px 0 8px;"), gmed::mod_eval_table_ui("ccc_eval_mod"))
+  })
+
+  output$ccc_pd_section <- renderUI({
+    req(show_plus_delta())
+    rid <- selected_resident_id()
+    req(rid)
+    if (!isTRUE(app_data()$full_load_complete)) {
+      return(div(
+        class = "alert alert-info mt-3",
+        style = "font-size:0.9em;",
+        icon("spinner"), " Plus/Delta data loading in background..."
+      ))
+    }
+    if (is.null(app_data()$all_forms$assessment) ||
+        nrow(app_data()$all_forms$assessment) == 0) {
+      return(p(class = "text-muted mt-2", icon("info-circle"),
+               " No assessment data available for Plus/Delta."))
+    }
+    tagList(tags$hr(style = "margin: 12px 0 8px;"), gmed::mod_plus_delta_table_ui("ccc_pd_mod"))
+  })
+
+  output$ccc_boards_section <- renderUI({
+    req(show_board_data())
+    rid <- selected_resident_id()
+    req(rid)
+    if (!isTRUE(app_data()$full_load_complete)) {
+      return(div(
+        class = "alert alert-info mt-3",
+        style = "font-size:0.9em;",
+        icon("spinner"), " Board/ITE data loading in background..."
+      ))
+    }
+    tagList(
+      tags$hr(style = "margin: 12px 0 8px;"),
+      gmed::mod_seval_boards_display_ui("ccc_boards_mod")
+    )
+  })
+
+  output$ccc_mile_section <- renderUI({
+    req(show_mile_progress())
+    rid <- selected_resident_id()
+    req(rid)
+    tagList(
+      tags$hr(style = "margin: 12px 0 8px;"),
+      plotly::plotlyOutput("ccc_milestone_plot", height = "420px")
+    )
+  })
+
+  # ── Milestone progression plot ───────────────────────────────────────────────
+  output$ccc_milestone_plot <- plotly::renderPlotly({
+    rid <- selected_resident_id()
+    req(rid)
+
+    long_data <- tryCatch(
+      get_milestone_longitudinal_data(app_data()),
+      error = function(e) NULL
+    )
+
+    empty_plot <- function(msg) {
+      plotly::plot_ly() %>%
+        plotly::add_annotations(
+          text = msg, x = 0.5, y = 0.5,
+          xref = "paper", yref = "paper",
+          showarrow = FALSE,
+          font = list(size = 14, color = "#6c757d")
+        ) %>%
+        plotly::layout(
+          xaxis = list(visible = FALSE),
+          yaxis = list(visible = FALSE)
+        )
+    }
+
+    if (is.null(long_data) || nrow(long_data) == 0) {
+      return(empty_plot("No milestone data available yet — full data loading in background."))
+    }
+
+    res_data <- long_data %>% filter(record_id == as.character(rid))
+    if (nrow(res_data) == 0) {
+      return(empty_plot("No milestone entries recorded for this resident."))
+    }
+
+    res_name <- tryCatch({
+      app_data()$residents %>%
+        filter(record_id == rid) %>%
+        slice(1) %>%
+        pull(full_name)
+    }, error = function(e) "")
+
+    period_order <- c("Mid Intern","End Intern","Mid PGY2","End PGY2","Mid PGY3","Graduating")
+
+    plotly::plot_ly(
+      data      = res_data,
+      x         = ~prog_mile_period,
+      y         = ~score,
+      color     = ~milestone,
+      type      = "scatter",
+      mode      = "lines+markers",
+      line      = list(width = 2),
+      marker    = list(size = 7)
+    ) %>%
+    plotly::layout(
+      title  = list(
+        text = sprintf("Milestone Progression — %s", res_name),
+        font = list(size = 14, color = "#2d3748")
+      ),
+      xaxis  = list(
+        title = "",
+        categoryorder = "array",
+        categoryarray = period_order,
+        tickangle = -20,
+        gridcolor = "#e9ecef"
+      ),
+      yaxis  = list(
+        title = "Score (1–9)",
+        range = c(0, 9),
+        dtick = 1,
+        gridcolor = "#e9ecef"
+      ),
+      legend = list(orientation = "v", x = 1.02, y = 1, font = list(size = 11)),
+      paper_bgcolor = "#ffffff",
+      plot_bgcolor  = "#f8f9fa",
+      margin = list(l = 55, r = 160, t = 50, b = 60),
+      font   = list(family = "Inter, sans-serif", size = 12)
+    )
+  })
+
+  # ── Previous CCC ILP display ─────────────────────────────────────────────────
+  output$prev_ccc_ilp_display <- renderUI({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+
+    if (nrow(resident_info) == 0) return(NULL)
+
+    period_num      <- get_period_number(resident_info$current_period)
+    prev_period_num <- if (!is.na(period_num) && period_num > 0) period_num - 1L else NA_integer_
+
+    if (is.na(prev_period_num)) {
+      return(p(
+        class = "text-muted",
+        style = "font-size:0.88rem; font-style:italic; margin-bottom:12px;",
+        icon("info-circle"), " No previous period — this is the resident's first review."
+      ))
+    }
+
+    prev_period_name <- get_period_name(prev_period_num)
+    prev_ccc <- tryCatch(
+      get_form_data_for_period(app_data()$all_forms, "ccc_review", rid, prev_period_name),
+      error = function(e) data.frame()
+    )
+
+    if (nrow(prev_ccc) == 0 || !("ccc_ilp" %in% names(prev_ccc)) ||
+        is.na(prev_ccc$ccc_ilp[1]) || nchar(trimws(as.character(prev_ccc$ccc_ilp[1]))) == 0) {
+      return(p(
+        class = "text-muted",
+        style = "font-size:0.88rem; font-style:italic; margin-bottom:12px;",
+        icon("info-circle"),
+        sprintf(" No CCC ILP was recorded for the previous period (%s).", prev_period_name)
+      ))
+    }
+
+    div(
+      class = "alert alert-secondary",
+      style = "border-left: 4px solid #6c757d; padding: 10px 14px; margin-bottom: 14px;",
+      tags$small(
+        class = "text-muted d-block",
+        style = "font-size:0.78rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px;",
+        sprintf("Previous CCC ILP — %s", prev_period_name)
+      ),
+      p(
+        style = "margin: 0; font-size: 0.94em; line-height: 1.55; white-space: pre-wrap;",
+        as.character(prev_ccc$ccc_ilp[1])
+      )
+    )
+  })
+
   # Resident detail panel
   output$resident_detail_panel <- renderUI({
     rid <- selected_resident_id()
@@ -1012,25 +1321,23 @@ create_server <- function(initial_data, server_state = NULL) {
       ),
       tags$br(),
 
-      # Additional Data Buttons
+      # Additional Data Toggles — Evaluations / Plus-Delta / Board / Milestone History
       fluidRow(
         column(
           width = 12,
           gmed::gmed_card(
-            title = "Additional Data",
-            actionButton(
-              "view_plus_delta",
-              "View Plus/Delta Comments",
-              class = "btn-info",
-              icon = icon("comments"),
-              style = "margin-right: 10px;"
+            title = "Additional Resident Data",
+            p(
+              class = "text-muted",
+              style = "font-size:0.88rem; margin-bottom: 10px;",
+              "Toggle sections to view evaluation data, plus/delta feedback,",
+              " board predictor, and milestone progression."
             ),
-            actionButton(
-              "view_ilp_goals",
-              "View Current ILP Goals",
-              class = "btn-info",
-              icon = icon("bullseye")
-            )
+            uiOutput("ccc_toggle_buttons"),
+            uiOutput("ccc_eval_section"),
+            uiOutput("ccc_pd_section"),
+            uiOutput("ccc_boards_section"),
+            uiOutput("ccc_mile_section")
           )
         )
       ),
@@ -1091,6 +1398,7 @@ create_server <- function(initial_data, server_state = NULL) {
           width = 12,
           gmed::gmed_card(
             title = "Individual Learning Plan",
+            uiOutput("prev_ccc_ilp_display"),
             uiOutput("coach_ilp_display"),
             tags$br(),
             uiOutput("second_comments_display"),
