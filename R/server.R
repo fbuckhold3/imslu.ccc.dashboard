@@ -1889,11 +1889,16 @@ create_server <- function(initial_data, server_state = NULL) {
       filter(record_id == rid) %>%
       slice(1)
 
-    milestone_values <- get_milestone_values_for_edit(
-      app_data(),
-      rid,
-      resident_info$current_period
+    milestone_values <- tryCatch(
+      get_milestone_values_for_edit(app_data(), rid, resident_info$current_period),
+      error = function(e) {
+        message("[MilestoneTable] get_milestone_values_for_edit error: ", e$message)
+        data.frame(competency = character(), field_name = character(),
+                   value = numeric(), stringsAsFactors = FALSE)
+      }
     )
+
+    editable <- FALSE  # set default; overridden below when editing is allowed
 
     # If no data exists, create empty template for administrative entry
     if (nrow(milestone_values) == 0) {
@@ -2168,7 +2173,7 @@ create_server <- function(initial_data, server_state = NULL) {
 
       tags$p(class = "text-muted mb-3",
         "Please review the entries below before submitting. ",
-        tags$strong("This will create a new CCC review record in REDCap.")),
+        tags$strong("This will save (or update) the CCC review record for this period.")),
 
       tags$table(class = "table table-sm table-bordered mb-0",
         tags$tbody(
@@ -2223,21 +2228,9 @@ create_server <- function(initial_data, server_state = NULL) {
                          c("Mid Intern", "End Intern", "Mid PGY2",
                            "End PGY2", "Mid PGY3", "Graduating")) "1" else "2"
 
-      all_ccc_raw <- if (!is.null(app_data()$all_forms$ccc_review) &&
-                         nrow(app_data()$all_forms$ccc_review) > 0) {
-        app_data()$all_forms$ccc_review %>%
-          filter(record_id == as.character(rid),
-                 redcap_repeat_instrument == "ccc_review")
-      } else {
-        data.frame()
-      }
-
-      next_instance <- if (nrow(all_ccc_raw) > 0 &&
-                           "redcap_repeat_instance" %in% names(all_ccc_raw)) {
-        max(as.numeric(all_ccc_raw$redcap_repeat_instance), na.rm = TRUE) + 1
-      } else {
-        1
-      }
+      # Instance = period_code (1-7), matching coach dash pattern.
+      # If this period's instance already exists, REDCap will update it.
+      next_instance <- period_code
 
       ccc_data <- data.frame(
         record_id                = as.character(rid),
@@ -2527,6 +2520,7 @@ create_server <- function(initial_data, server_state = NULL) {
             # Async mini-refresh of just milestone_entry (no source global.R)
             rdm_url   <- REDCAP_CONFIG$url
             rdm_token <- REDCAP_CONFIG$rdm_token
+            dd        <- app_data()$data_dict
 
             promises::future_promise({
               library(REDCapR); library(dplyr)
@@ -2538,6 +2532,26 @@ create_server <- function(initial_data, server_state = NULL) {
               )$data
             }) %...>% (function(new_mile) {
               if (!is.null(new_mile) && nrow(new_mile) > 0) {
+                # Translate prog_mile_period codes → labels (same as load_ccc_data)
+                if ("prog_mile_period" %in% names(new_mile) && !is.null(dd)) {
+                  pf_str <- dd %>%
+                    filter(field_name == "prog_mile_period") %>%
+                    pull(select_choices_or_calculations)
+                  if (length(pf_str) > 0 && !is.na(pf_str[1])) {
+                    pm <- .parse_choices(pf_str[1])
+                    new_mile[["prog_mile_period"]] <-
+                      .translate_codes(new_mile[["prog_mile_period"]], pm)
+                  }
+                }
+                # Ensure redcap_repeat_instrument is populated
+                if ("redcap_repeat_instrument" %in% names(new_mile)) {
+                  new_mile$redcap_repeat_instrument[
+                    is.na(new_mile$redcap_repeat_instrument) |
+                    new_mile$redcap_repeat_instrument == ""
+                  ] <- "milestone_entry"
+                } else {
+                  new_mile$redcap_repeat_instrument <- "milestone_entry"
+                }
                 updated <- app_data()
                 updated$all_forms$milestone_entry <- new_mile
                 app_data(updated)

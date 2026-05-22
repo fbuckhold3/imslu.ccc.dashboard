@@ -441,14 +441,20 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
 
     # Milestone Entry uses prog_mile_period
     "milestone_entry" = {
-      if ("prog_mile_period" %in% names(form_data)) {
-        form_data %>%
-          filter(redcap_repeat_instrument == "milestone_entry") %>%
-          filter(!is.na(prog_mile_period), prog_mile_period == !!period_name)
-      } else {
-        form_data %>%
-          filter(redcap_repeat_instrument == "milestone_entry")
-      }
+      tryCatch({
+        if ("prog_mile_period" %in% names(form_data)) {
+          form_data %>%
+            filter(redcap_repeat_instrument == "milestone_entry") %>%
+            filter(!is.na(prog_mile_period),
+                   as.character(prog_mile_period) == as.character(period_name))
+        } else {
+          form_data %>%
+            filter(redcap_repeat_instrument == "milestone_entry")
+        }
+      }, error = function(e) {
+        message("[get_form_data_for_period] milestone_entry filter error: ", e$message)
+        form_data %>% filter(redcap_repeat_instrument == "milestone_entry")
+      })
     },
 
     # Milestone Self-Evaluation uses prog_mile_period_self
