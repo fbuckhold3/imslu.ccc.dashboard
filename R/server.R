@@ -1365,18 +1365,18 @@ create_server <- function(initial_data, server_state = NULL) {
       uiOutput("phase2_loading_banner"),
       tags$hr(),
 
-      # ── 2. Previous Reviews (3 col): Coach | Second | Action Items ──────────
+      # ── 2. Previous Reviews: Coach + Second (left) | Action Items (right) ────
       h4("Previous Reviews", style = "margin-top: 20px; margin-bottom: 12px;"),
       fluidRow(
-        column(width = 4,
+        # Left half: coach stacked on second
+        column(width = 6,
           gmed::gmed_card(
             title = "Coach Review",
             p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
               "Current period coach review"),
             uiOutput("coach_review_summary")
-          )
-        ),
-        column(width = 4,
+          ),
+          tags$br(),
           gmed::gmed_card(
             title = "Second Review",
             p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
@@ -1384,7 +1384,8 @@ create_server <- function(initial_data, server_state = NULL) {
             uiOutput("second_review_summary")
           )
         ),
-        column(width = 4,
+        # Right half: action items
+        column(width = 6,
           gmed::gmed_card(
             title = "Previous Action Items",
             DT::DTOutput("action_data_table")
