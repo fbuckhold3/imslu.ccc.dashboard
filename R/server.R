@@ -2116,137 +2116,203 @@ create_server <- function(initial_data, server_state = NULL) {
     })
   })
 
-  # Submit CCC Review
+  # ── Submit CCC Review — Step 1: show confirmation modal ──────────────────────
   observeEvent(input$submit_ccc_review, {
     rid <- selected_resident_id()
     req(rid)
 
-    # ── Validate and build ccc_data synchronously (fast, no network) ──────────
     resident_info <- app_data()$residents %>%
       filter(record_id == rid) %>%
       slice(1)
 
     if (nrow(resident_info) == 0) {
-      showNotification("Resident not found in data. Please refresh.", type = "error", duration = 8)
+      showNotification("Resident not found. Please refresh.", type = "error", duration = 8)
       return()
     }
 
     if (is.null(input$ccc_ilp) || nchar(trimws(input$ccc_ilp)) == 0) {
-      showNotification("Please enter CCC ILP before submitting.", type = "warning", duration = 5)
+      showNotification("Please enter a CCC ILP before submitting.", type = "warning", duration = 5)
       return()
     }
 
-    period_code <- switch(
-      resident_info$current_period,
-      "Mid Intern"         = 1,
-      "End Intern"         = 2,
-      "Mid PGY2"           = 3,
-      "End PGY2"           = 4,
-      "Mid PGY3"           = 5,
-      "Graduating"         = 6,
-      "Entering Residency" = 7,
-      1
-    )
-
-    review_type <- if (resident_info$current_period %in%
-                       c("Mid Intern", "End Intern", "Mid PGY2",
-                         "End PGY2", "Mid PGY3", "Graduating")) "1" else "2"
-
-    all_ccc_raw <- if (!is.null(app_data()$all_forms$ccc_review) &&
-                       nrow(app_data()$all_forms$ccc_review) > 0) {
-      app_data()$all_forms$ccc_review %>%
-        filter(record_id == as.character(rid),
-               redcap_repeat_instrument == "ccc_review")
-    } else {
-      data.frame()
+    # Helper: safe field read from input
+    inp <- function(nm, default = "") {
+      v <- input[[nm]]
+      if (is.null(v) || (length(v) == 1 && !nzchar(trimws(as.character(v))))) default
+      else paste(as.character(v), collapse = ", ")
     }
 
-    next_instance <- if (nrow(all_ccc_raw) > 0 &&
-                         "redcap_repeat_instance" %in% names(all_ccc_raw)) {
-      max(as.numeric(all_ccc_raw$redcap_repeat_instance), na.rm = TRUE) + 1
-    } else {
-      1
+    # Build confirmation modal content
+    mk_row <- function(label, val, empty_label = "—") {
+      v <- if (!is.null(val) && nzchar(trimws(paste(val, collapse = "")))) val else empty_label
+      tags$tr(
+        tags$th(style = "width:180px; font-weight:600; color:#003d5c; padding:6px 10px; vertical-align:top;", label),
+        tags$td(style = "padding:6px 10px;", v)
+      )
     }
 
-    # Capture all input values NOW (before async — inputs may change)
-    ccc_data <- data.frame(
-      record_id                = as.character(rid),
-      redcap_repeat_instrument = "ccc_review",
-      redcap_repeat_instance   = as.character(next_instance),
-      ccc_date                 = as.character(Sys.Date()),
-      ccc_rev_type             = as.character(review_type),
-      ccc_session              = as.character(period_code),
-      ccc_ilp            = as.character(input$ccc_ilp),
-      ccc_mile           = if (!is.null(input$ccc_mile))           as.character(input$ccc_mile) else "0",
-      ccc_mile_notes     = if (!is.null(input$ccc_mile_notes))     as.character(input$ccc_mile_notes) else "",
-      ccc_issues_follow_up = if (!is.null(input$ccc_issues_follow_up)) as.character(input$ccc_issues_follow_up) else "",
-      ccc_concern        = if (!is.null(input$ccc_concern))        as.character(input$ccc_concern) else "0",
-      ccc_comments       = if (!is.null(input$ccc_comments))       as.character(input$ccc_comments) else "",
-      ccc_review_complete = "2",
-      stringsAsFactors = FALSE
-    )
+    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency", for_ui = TRUE)
+    action_choices     <- get_field_choices(app_data()$data_dict, "ccc_action",     for_ui = TRUE)
+    status_choices     <- get_field_choices(app_data()$data_dict, "ccc_action_status", for_ui = TRUE)
 
-    competency_choices <- get_field_choices(app_data()$data_dict, "ccc_competency")
-    if (length(competency_choices) > 0) {
-      for (code in names(competency_choices)) {
+    sel_labels <- function(choices, selected_codes) {
+      if (length(selected_codes) == 0 || is.null(selected_codes)) return("None")
+      lbls <- names(choices)[unname(choices) %in% selected_codes]
+      if (length(lbls) == 0) "None" else paste(lbls, collapse = "; ")
+    }
+
+    showModal(modalDialog(
+      title = tags$span(icon("clipboard-check"), " Confirm CCC Review Submission"),
+      size  = "l",
+      easyClose = FALSE,
+
+      tags$p(class = "text-muted mb-3",
+        "Please review the entries below before submitting. ",
+        tags$strong("This will create a new CCC review record in REDCap.")),
+
+      tags$table(class = "table table-sm table-bordered mb-0",
+        tags$tbody(
+          mk_row("Resident",    resident_info$full_name),
+          mk_row("Period",      resident_info$current_period),
+          mk_row("Date",        as.character(Sys.Date())),
+          tags$tr(tags$td(colspan = "2",
+            tags$hr(style = "margin: 4px 0;"))),
+          mk_row("ILP",         inp("ccc_ilp")),
+          mk_row("Milestone Δ", if (inp("ccc_mile", "0") == "1") "Yes" else "No"),
+          mk_row("Mile. Notes", inp("ccc_mile_notes")),
+          tags$tr(tags$td(colspan = "2",
+            tags$hr(style = "margin: 4px 0;"))),
+          mk_row("Follow-up Issues", if (inp("ccc_issues_yn", "0") == "1") inp("ccc_issues_follow_up") else "No"),
+          mk_row("Concerns",    if (inp("ccc_concern", "0") == "1") "Yes" else "No"),
+          mk_row("Comments",    inp("ccc_comments")),
+          mk_row("Competencies", sel_labels(competency_choices, input$ccc_competency)),
+          mk_row("Actions",      sel_labels(action_choices,     input$ccc_action)),
+          mk_row("Status",       sel_labels(status_choices,     input$ccc_action_status))
+        )
+      ),
+
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("confirm_submit_ccc", "Submit to REDCap",
+                     class = "btn-primary", icon = icon("check"))
+      )
+    ))
+  })
+
+  # ── Submit CCC Review — Step 2: confirmed, do the write ───────────────────────
+  observeEvent(input$confirm_submit_ccc, {
+    removeModal()
+
+    rid <- selected_resident_id()
+    req(rid)
+
+    tryCatch({
+      resident_info <- app_data()$residents %>%
+        filter(record_id == rid) %>%
+        slice(1)
+
+      period_code <- switch(
+        resident_info$current_period,
+        "Mid Intern"         = 1, "End Intern"         = 2,
+        "Mid PGY2"           = 3, "End PGY2"           = 4,
+        "Mid PGY3"           = 5, "Graduating"         = 6,
+        "Entering Residency" = 7, 1
+      )
+
+      review_type <- if (resident_info$current_period %in%
+                         c("Mid Intern", "End Intern", "Mid PGY2",
+                           "End PGY2", "Mid PGY3", "Graduating")) "1" else "2"
+
+      all_ccc_raw <- if (!is.null(app_data()$all_forms$ccc_review) &&
+                         nrow(app_data()$all_forms$ccc_review) > 0) {
+        app_data()$all_forms$ccc_review %>%
+          filter(record_id == as.character(rid),
+                 redcap_repeat_instrument == "ccc_review")
+      } else {
+        data.frame()
+      }
+
+      next_instance <- if (nrow(all_ccc_raw) > 0 &&
+                           "redcap_repeat_instance" %in% names(all_ccc_raw)) {
+        max(as.numeric(all_ccc_raw$redcap_repeat_instance), na.rm = TRUE) + 1
+      } else {
+        1
+      }
+
+      ccc_data <- data.frame(
+        record_id                = as.character(rid),
+        redcap_repeat_instrument = "ccc_review",
+        redcap_repeat_instance   = as.character(next_instance),
+        ccc_date                 = as.character(Sys.Date()),
+        ccc_rev_type             = as.character(review_type),
+        ccc_session              = as.character(period_code),
+        ccc_ilp              = if (!is.null(input$ccc_ilp))              as.character(input$ccc_ilp)              else "",
+        ccc_mile             = if (!is.null(input$ccc_mile))             as.character(input$ccc_mile)             else "0",
+        ccc_mile_notes       = if (!is.null(input$ccc_mile_notes))       as.character(input$ccc_mile_notes)       else "",
+        ccc_issues_follow_up = if (!is.null(input$ccc_issues_follow_up)) as.character(input$ccc_issues_follow_up) else "",
+        ccc_concern          = if (!is.null(input$ccc_concern))          as.character(input$ccc_concern)          else "0",
+        ccc_comments         = if (!is.null(input$ccc_comments))         as.character(input$ccc_comments)         else "",
+        ccc_review_complete  = "2",
+        stringsAsFactors = FALSE
+      )
+
+      for (code in names(get_field_choices(app_data()$data_dict, "ccc_competency"))) {
         ccc_data[[paste0("ccc_competency___", code)]] <-
           if (!is.null(input$ccc_competency) && code %in% input$ccc_competency) "1" else "0"
       }
-    }
-
-    action_choices <- get_field_choices(app_data()$data_dict, "ccc_action")
-    if (length(action_choices) > 0) {
-      for (code in names(action_choices)) {
+      for (code in names(get_field_choices(app_data()$data_dict, "ccc_action"))) {
         ccc_data[[paste0("ccc_action___", code)]] <-
           if (!is.null(input$ccc_action) && code %in% input$ccc_action) "1" else "0"
       }
-    }
-
-    status_choices <- get_field_choices(app_data()$data_dict, "ccc_action_status")
-    if (length(status_choices) > 0) {
-      for (code in names(status_choices)) {
+      for (code in names(get_field_choices(app_data()$data_dict, "ccc_action_status"))) {
         ccc_data[[paste0("ccc_action_status___", code)]] <-
           if (!is.null(input$ccc_action_status) && code %in% input$ccc_action_status) "1" else "0"
       }
-    }
 
-    resident_name <- resident_info$full_name
-    rdm_url       <- REDCAP_CONFIG$url
-    rdm_token     <- REDCAP_CONFIG$rdm_token
-    dd            <- app_data()$data_dict
+      message("[Submit] Writing CCC review — record_id=", rid,
+              " instance=", next_instance, " period=", resident_info$current_period)
 
-    # ── Show "Saving..." immediately so the user sees feedback ────────────────
-    showNotification(
-      tagList(tags$span(class = "spinner-border spinner-border-sm me-2"),
-              "Saving CCC review to REDCap…"),
-      type = "message", duration = NULL, id = "ccc_save_notif"
-    )
-
-    # ── Async write — avoids blocking the session / WebSocket timeout ─────────
-    promises::future_promise({
-      library(REDCapR); library(dplyr); library(lubridate)
-      source("R/global.R")
-      httr::set_config(httr::config(ssl_verifypeer = FALSE, ssl_verifyhost = FALSE))
-      REDCapR::redcap_write(
-        ds_to_write = ccc_data,
-        redcap_uri  = rdm_url,
-        token       = rdm_token
+      # ── Write to REDCap (synchronous — matches coach dash pattern) ────────────
+      result <- REDCapR::redcap_write_oneshot(
+        ds         = ccc_data,
+        redcap_uri = REDCAP_CONFIG$url,
+        token      = REDCAP_CONFIG$rdm_token
       )
-    }) %...>% (function(result) {
-      removeNotification("ccc_save_notif")
+
+      message("[Submit] result$success=", result$success,
+              " msg=", result$outcome_message)
+
       if (isTRUE(result$success)) {
         showNotification(
-          paste("✓ CCC Review saved for", resident_name),
+          paste("✓ CCC Review saved for", resident_info$full_name),
           type = "message", duration = 6
         )
-        # Lightweight background refresh of just the ccc_review form
+
+        # Quick async refresh of just the ccc_review form
+        rdm_url   <- REDCAP_CONFIG$url
+        rdm_token <- REDCAP_CONFIG$rdm_token
+        dd        <- app_data()$data_dict
+
         promises::future_promise({
-          library(REDCapR); library(dplyr); library(lubridate)
-          source("R/global.R")
+          library(REDCapR); library(dplyr)
           httr::set_config(httr::config(ssl_verifypeer = FALSE, ssl_verifyhost = FALSE))
-          .fetch_ccc_form("ccc_review", "ccc_session", rdm_token, rdm_url, dd)
+          REDCapR::redcap_read_oneshot(
+            redcap_uri   = rdm_url, token = rdm_token,
+            forms        = "ccc_review",
+            raw_or_label = "raw", verbose = FALSE
+          )$data
         }) %...>% (function(new_ccc) {
           if (!is.null(new_ccc) && nrow(new_ccc) > 0) {
+            # Apply the same period-field translation that .fetch_ccc_form does
+            if ("ccc_session" %in% names(new_ccc) && !is.null(dd)) {
+              pf_str <- dd %>%
+                filter(field_name == "ccc_session") %>%
+                pull(select_choices_or_calculations)
+              if (length(pf_str) > 0 && !is.na(pf_str[1])) {
+                pm <- .parse_choices(pf_str[1])
+                new_ccc[["ccc_session"]] <- .translate_codes(new_ccc[["ccc_session"]], pm)
+              }
+            }
             updated <- app_data()
             updated$all_forms$ccc_review <- new_ccc
             app_data(updated)
@@ -2254,22 +2320,26 @@ create_server <- function(initial_data, server_state = NULL) {
         }) %...!% (function(err) {
           message("[Submit] ccc_review refresh failed: ", err$message)
         })
-        # Return to list
+
         show_list_view(TRUE)
         selected_resident_id(NULL)
+
       } else {
         showNotification(
-          paste("REDCap write failed:", result$outcome_message),
-          type = "error", duration = 20
+          tagList(
+            tags$strong("REDCap write failed:"), tags$br(),
+            result$outcome_message
+          ),
+          type = "error", duration = 30
         )
       }
-    }) %...!% (function(err) {
-      removeNotification("ccc_save_notif")
+
+    }, error = function(e) {
       showNotification(
-        paste("Error saving CCC review:", err$message),
-        type = "error", duration = 20
+        paste("Error during submission:", e$message),
+        type = "error", duration = 30
       )
-      message("[Submit] Error: ", err$message)
+      message("[Submit] Error: ", e$message)
     })
   })
 
