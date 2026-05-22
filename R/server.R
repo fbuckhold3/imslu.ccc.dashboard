@@ -577,15 +577,52 @@ create_server <- function(initial_data, server_state = NULL) {
 
   # Handle data refresh
   observeEvent(input$refresh_data, {
-    tryCatch({
-      new_data <- load_ccc_data()
+    # 1. Clear the disk cache so next startup hits REDCap fresh
+    cache_path <- server_state$cache_path
+    tryCatch(unlink(cache_path), error = function(e) NULL)
+
+    # 2. Mark data as loading so the loading banner re-appears
+    tmp <- app_data()
+    tmp$full_load_complete <- FALSE
+    app_data(tmp)
+    server_state$load_complete <- FALSE
+
+    # 3. Show persistent loading notification
+    showNotification(
+      tagList(
+        tags$span(class = "spinner-border spinner-border-sm me-2", role = "status"),
+        "Refreshing from REDCap — takes about 30–45 seconds…"
+      ),
+      type = "message", duration = NULL, id = "refresh_notif"
+    )
+
+    # 4. Fire fresh background load (same as Phase 2 startup)
+    rdm_url    <- initial_data$redcap_url
+    rdm_token  <- initial_data$rdm_token
+
+    promises::future_promise({
+      source("R/global.R")
+      library(gmed); library(dplyr); library(purrr); library(REDCapR); library(lubridate)
+      httr::set_config(httr::config(ssl_verifypeer = FALSE, ssl_verifyhost = FALSE))
+      load_ccc_data(redcap_url = rdm_url, rdm_token = rdm_token)
+    }) %...>% (function(new_data) {
+      new_data$full_load_complete <- TRUE
+      # Write new cache
+      tryCatch({
+        dir.create(dirname(cache_path), recursive = TRUE, showWarnings = FALSE)
+        saveRDS(new_data, cache_path)
+        message("[Refresh] New data cached to disk")
+      }, error = function(e) message("[Refresh] Cache save failed: ", e$message))
+      server_state$full_data     <- new_data
+      server_state$load_complete <- TRUE
       app_data(new_data)
-      showNotification("Data refreshed successfully", type = "message")
-    }, error = function(e) {
-      showNotification(
-        paste("Error refreshing data:", e$message),
-        type = "error"
-      )
+      removeNotification("refresh_notif")
+      showNotification("✓ Data refreshed successfully!", type = "message", duration = 5)
+    }) %...!% (function(err) {
+      removeNotification("refresh_notif")
+      showNotification(paste("Refresh failed:", err$message), type = "error", duration = 15)
+      # Restore previous full_load_complete state so banner goes away
+      tmp2 <- app_data(); tmp2$full_load_complete <- TRUE; app_data(tmp2)
     })
   })
 
