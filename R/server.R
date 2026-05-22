@@ -1537,12 +1537,24 @@ create_server <- function(initial_data, server_state = NULL) {
     DT::datatable(
       action_data,
       options = list(
-        pageLength = 5,
-        dom = 't',
-        ordering = TRUE,
-        searching = FALSE
+        pageLength  = 5,
+        dom         = 'tp',         # table + pagination only
+        ordering    = FALSE,
+        searching   = FALSE,
+        scrollX     = TRUE,         # horizontal scroll within card
+        autoWidth   = FALSE,
+        columnDefs  = list(
+          list(width = "70px",  targets = 0),   # Date
+          list(width = "80px",  targets = 1),   # Session
+          list(width = "65px",  targets = 2),   # Type
+          list(width = "120px", targets = 3),   # Issues
+          list(width = "120px", targets = 4),   # Comments
+          list(width = "90px",  targets = 5),   # Competency
+          list(width = "80px",  targets = 6),   # Action
+          list(width = "70px",  targets = 7)    # Status
+        )
       ),
-      rownames = FALSE,
+      rownames  = FALSE,
       selection = 'none'
     )
   })
