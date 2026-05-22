@@ -2500,51 +2500,66 @@ create_server <- function(initial_data, server_state = NULL) {
 
         update_data$prog_mile_period <- as.character(period_code)
 
-        # Try to save to REDCap
+        # Try to save to REDCap (synchronous — matches coach dash pattern)
         tryCatch({
-          result <- REDCapR::redcap_write(
-            ds_to_write = update_data,
+          message("[Milestone] Writing milestone_entry — record_id=", rid,
+                  " instance=", milestone_entry_data$redcap_repeat_instance[1],
+                  " field=", field_name, " value=", numeric_value)
+
+          result <- REDCapR::redcap_write_oneshot(
+            ds         = update_data,
             redcap_uri = REDCAP_CONFIG$url,
-            token = REDCAP_CONFIG$rdm_token
+            token      = REDCAP_CONFIG$rdm_token
           )
 
-          if (result$success) {
+          message("[Milestone] result$success=", result$success,
+                  " msg=", result$outcome_message)
+
+          if (isTRUE(result$success)) {
             message_text <- if (creating_new_entry) {
-              paste("New milestone entry created successfully for", resident_info$full_name)
+              paste("New milestone entry created for", resident_info$full_name)
             } else {
-              paste("Milestone values updated successfully for", resident_info$full_name)
+              paste("Milestone values updated for", resident_info$full_name)
             }
 
-            showNotification(
-              message_text,
-              type = "message",
-              duration = 5
-            )
+            showNotification(message_text, type = "message", duration = 5)
 
-            # Refresh data
-            tryCatch({
-              new_data <- load_ccc_data()
-              app_data(new_data)
-            }, error = function(e) {
-              showNotification(
-                "Values saved, but could not refresh data. Please use Refresh Data button.",
-                type = "warning",
-                duration = 5
-              )
+            # Async mini-refresh of just milestone_entry (no source global.R)
+            rdm_url   <- REDCAP_CONFIG$url
+            rdm_token <- REDCAP_CONFIG$rdm_token
+
+            promises::future_promise({
+              library(REDCapR); library(dplyr)
+              httr::set_config(httr::config(ssl_verifypeer = FALSE, ssl_verifyhost = FALSE))
+              REDCapR::redcap_read_oneshot(
+                redcap_uri   = rdm_url, token = rdm_token,
+                forms        = "milestone_entry",
+                raw_or_label = "raw", verbose = FALSE
+              )$data
+            }) %...>% (function(new_mile) {
+              if (!is.null(new_mile) && nrow(new_mile) > 0) {
+                updated <- app_data()
+                updated$all_forms$milestone_entry <- new_mile
+                app_data(updated)
+              }
+            }) %...!% (function(err) {
+              message("[Milestone] milestone_entry refresh failed: ", err$message)
             })
+
           } else {
             showNotification(
-              paste("Error saving milestone values:", result$outcome_message),
-              type = "error",
-              duration = 10
+              tagList(tags$strong("REDCap write failed:"), tags$br(),
+                      result$outcome_message),
+              type = "error", duration = 30
             )
           }
         }, error = function(e) {
           showNotification(
             paste("Error saving milestone values:", e$message),
             type = "error",
-            duration = 10
+            duration = 30
           )
+          message("[Milestone] Error: ", e$message)
         })
       }
     } else {
