@@ -1392,22 +1392,22 @@ create_server <- function(initial_data, server_state = NULL) {
       uiOutput("phase2_loading_banner"),
       tags$hr(),
 
-      # ── 2. Previous Reviews: Coach + Second (left) | Action Items (right) ────
-      h4("Previous Reviews", style = "margin-top: 20px; margin-bottom: 12px;"),
+      # ── 2. Current Period Review Materials ───────────────────────────────────
+      h4("Review Materials", style = "margin-top: 20px; margin-bottom: 12px;"),
       fluidRow(
         # Left half: coach stacked on second
         column(width = 6,
           gmed::gmed_card(
             title = "Coach Review",
             p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
-              "Current period coach review"),
+              "Coach review for current period"),
             uiOutput("coach_review_summary")
           ),
           tags$br(),
           gmed::gmed_card(
             title = "Second Review",
             p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
-              "Current period second reviewer"),
+              "Second reviewer for current period"),
             uiOutput("second_review_summary")
           )
         ),
@@ -1676,13 +1676,11 @@ create_server <- function(initial_data, server_state = NULL) {
       ),
       br(),
       gmed::gmed_card(
-        title = "Edit Program Milestones",
+        title = "Update Program Milestones",
         p(class = "text-muted", style = "font-size: 0.9em;",
-          "Edit milestone ratings (1-9 scale) for this period."),
-        DT::DTOutput("milestone_edit_table"),
-        tags$br(),
-        actionButton("save_milestone_edits", "Save Changes",
-                     class = "btn-warning w-100", icon = icon("save"))
+          "Select the updated rating (1–9) for each subcompetency. ",
+          tags$em("Leave '—' for any unchanged. Milestone values are saved together with the CCC review.")),
+        uiOutput("milestone_entry_inputs")
       )
     )
   })
@@ -1881,7 +1879,8 @@ create_server <- function(initial_data, server_state = NULL) {
   })
 
   # Milestone Edit Table (Editable)
-  output$milestone_edit_table <- DT::renderDT({
+  # Milestone entry inputs — grouped selects pre-populated from existing data
+  output$milestone_entry_inputs <- renderUI({
     rid <- selected_resident_id()
     req(rid)
 
@@ -1889,64 +1888,71 @@ create_server <- function(initial_data, server_state = NULL) {
       filter(record_id == rid) %>%
       slice(1)
 
-    milestone_values <- tryCatch(
+    existing_mile <- tryCatch(
       get_milestone_values_for_edit(app_data(), rid, resident_info$current_period),
       error = function(e) {
-        message("[MilestoneTable] get_milestone_values_for_edit error: ", e$message)
+        message("[MilestoneInputs] error: ", e$message)
         data.frame(competency = character(), field_name = character(),
                    value = numeric(), stringsAsFactors = FALSE)
       }
     )
 
-    editable <- FALSE  # set default; overridden below when editing is allowed
-
-    # If no data exists, create empty template for administrative entry
-    if (nrow(milestone_values) == 0) {
-      # Create template with all standard REP milestone competencies (21 total)
-      template_competencies <- c(
-        "PC1", "PC2", "PC3", "PC4", "PC5", "PC6",
-        "MK1", "MK2", "MK3",
-        "SBP1", "SBP2", "SBP3",
-        "PBL1", "PBL2",
-        "PROF1", "PROF2", "PROF3", "PROF4",
-        "ICS1", "ICS2", "ICS3"
-      )
-
-      display_data <- data.frame(
-        Subcompetency = sapply(template_competencies, get_competency_full_name),
-        Value = rep(NA, length(template_competencies)),
-        Image = paste0('<a href="#" onclick="showImage(\'milestones/', tolower(template_competencies), '.png\'); return false;">View</a>'),
-        stringsAsFactors = FALSE
-      )
-      editable <- TRUE  # Enable editing for administrative entry
-    } else {
-      # Add full names and image links
-      display_data <- data.frame(
-        Subcompetency = sapply(milestone_values$competency, get_competency_full_name),
-        Value = milestone_values$value,
-        Image = paste0('<a href="#" onclick="showImage(\'milestones/', tolower(milestone_values$competency), '.png\'); return false;">View</a>'),
-        stringsAsFactors = FALSE
-      )
-      editable <- TRUE
+    get_val <- function(field) {
+      if (nrow(existing_mile) > 0 && "field_name" %in% names(existing_mile)) {
+        idx <- which(existing_mile$field_name == field)
+        if (length(idx) > 0 && !is.na(existing_mile$value[idx[1]]))
+          return(as.character(as.integer(existing_mile$value[idx[1]])))
+      }
+      ""
     }
 
-    DT::datatable(
-      display_data,
-      escape = FALSE,  # Allow HTML in Image column
-      options = list(
-        pageLength = 25,
-        dom = 't',
-        ordering = FALSE,
-        searching = FALSE,
-        columnDefs = list(
-          list(width = '200px', targets = 0),  # Subcompetency column
-          list(width = '50px', targets = 1),   # Value column (editable)
-          list(width = '50px', targets = 2)    # Image link column
+    cf      <- mile_comp_fields()
+    domains <- unique(cf$domain)
+
+    domain_blocks <- lapply(domains, function(dom) {
+      rows <- cf[cf$domain == dom, ]
+      comp_rows <- lapply(seq_len(nrow(rows)), function(i) {
+        code      <- rows$code[i]
+        field     <- rows$field[i]
+        full_name <- as.character(get_competency_full_name(code))
+        cur_val   <- get_val(field)
+        tags$tr(
+          tags$td(
+            style = "font-size:0.84rem; padding:2px 8px; vertical-align:middle; color:#333;",
+            full_name
+          ),
+          tags$td(
+            style = "width:85px; padding:1px 4px;",
+            selectInput(
+              inputId  = paste0("mile_", field),
+              label    = NULL,
+              choices  = c("—" = "", as.character(1:9)),
+              selected = cur_val,
+              width    = "78px"
+            )
+          )
         )
-      ),
-      rownames = FALSE,
-      selection = 'none',
-      editable = if (editable) list(target = 'cell', disable = list(columns = c(0, 2))) else FALSE
+      })
+
+      tagList(
+        tags$tr(
+          tags$td(
+            colspan = "2",
+            style   = "padding:6px 8px 2px; background:#f8f9fa; border-top:1px solid #dee2e6;",
+            tags$span(
+              style = "font-size:0.78rem; font-weight:700; text-transform:uppercase;
+                       letter-spacing:0.05em; color:#003d5c;",
+              dom
+            )
+          )
+        ),
+        comp_rows
+      )
+    })
+
+    tags$table(
+      style = "width:100%; border-collapse:collapse;",
+      tags$tbody(domain_blocks)
     )
   })
 
@@ -2185,6 +2191,18 @@ create_server <- function(initial_data, server_state = NULL) {
           mk_row("ILP",         inp("ccc_ilp")),
           mk_row("Milestone Δ", if (inp("ccc_mile", "0") == "1") "Yes" else "No"),
           mk_row("Mile. Notes", inp("ccc_mile_notes")),
+          if (inp("ccc_mile", "0") == "1") {
+            cf      <- mile_comp_fields()
+            changed <- Filter(function(x) !is.null(x) && nzchar(x),
+              setNames(lapply(cf$field, function(f) input[[paste0("mile_", f)]]), cf$code))
+            mk_row(
+              "Milestones",
+              if (length(changed) > 0)
+                paste(names(changed), unlist(changed), sep = "=", collapse = "  |  ")
+              else
+                tags$em("(no values entered)")
+            )
+          } else NULL,
           tags$tr(tags$td(colspan = "2",
             tags$hr(style = "margin: 4px 0;"))),
           mk_row("Follow-up Issues", if (inp("ccc_issues_yn", "0") == "1") inp("ccc_issues_follow_up") else "No"),
@@ -2281,7 +2299,54 @@ create_server <- function(initial_data, server_state = NULL) {
           type = "message", duration = 6
         )
 
-        # Quick async refresh of just the ccc_review form
+        # ── Write milestone_entry if ccc_mile == "1" and any values entered ───
+        if (!is.null(input$ccc_mile) && input$ccc_mile == "1") {
+          cf <- mile_comp_fields()
+          mile_vals <- setNames(
+            lapply(cf$field, function(f) {
+              v <- input[[paste0("mile_", f)]]
+              if (!is.null(v) && nzchar(v)) as.numeric(v) else NA_real_
+            }),
+            cf$field
+          )
+
+          if (any(!is.na(unlist(mile_vals)))) {
+            mile_data <- data.frame(
+              record_id                = as.character(rid),
+              redcap_repeat_instrument = "milestone_entry",
+              redcap_repeat_instance   = as.character(period_code),
+              prog_mile_date           = as.character(Sys.Date()),
+              prog_mile_period         = as.character(period_code),
+              stringsAsFactors = FALSE
+            )
+            for (f in cf$field) mile_data[[f]] <- mile_vals[[f]]
+
+            message("[Submit] Writing milestone_entry — record_id=", rid,
+                    " instance=", period_code)
+
+            mile_result <- tryCatch(
+              REDCapR::redcap_write_oneshot(
+                ds         = mile_data,
+                redcap_uri = REDCAP_CONFIG$url,
+                token      = REDCAP_CONFIG$rdm_token
+              ),
+              error = function(e)
+                list(success = FALSE, outcome_message = e$message)
+            )
+
+            message("[Submit] milestone result$success=", mile_result$success)
+
+            if (!isTRUE(mile_result$success)) {
+              showNotification(
+                tagList(tags$strong("Milestone write failed:"), tags$br(),
+                        mile_result$outcome_message),
+                type = "error", duration = 30
+              )
+            }
+          }
+        }
+
+        # Quick async refresh of ccc_review + milestone_entry
         rdm_url   <- REDCAP_CONFIG$url
         rdm_token <- REDCAP_CONFIG$rdm_token
         dd        <- app_data()$data_dict
@@ -2289,29 +2354,56 @@ create_server <- function(initial_data, server_state = NULL) {
         promises::future_promise({
           library(REDCapR); library(dplyr)
           httr::set_config(httr::config(ssl_verifypeer = FALSE, ssl_verifyhost = FALSE))
-          REDCapR::redcap_read_oneshot(
-            redcap_uri   = rdm_url, token = rdm_token,
-            forms        = "ccc_review",
-            raw_or_label = "raw", verbose = FALSE
-          )$data
-        }) %...>% (function(new_ccc) {
-          if (!is.null(new_ccc) && nrow(new_ccc) > 0) {
-            # Apply the same period-field translation that .fetch_ccc_form does
-            if ("ccc_session" %in% names(new_ccc) && !is.null(dd)) {
-              pf_str <- dd %>%
-                filter(field_name == "ccc_session") %>%
-                pull(select_choices_or_calculations)
-              if (length(pf_str) > 0 && !is.na(pf_str[1])) {
-                pm <- .parse_choices(pf_str[1])
-                new_ccc[["ccc_session"]] <- .translate_codes(new_ccc[["ccc_session"]], pm)
-              }
+          list(
+            ccc_review = REDCapR::redcap_read_oneshot(
+              redcap_uri   = rdm_url, token = rdm_token,
+              forms        = "ccc_review",
+              raw_or_label = "raw", verbose = FALSE
+            )$data,
+            milestone_entry = REDCapR::redcap_read_oneshot(
+              redcap_uri   = rdm_url, token = rdm_token,
+              forms        = "milestone_entry",
+              raw_or_label = "raw", verbose = FALSE
+            )$data
+          )
+        }) %...>% (function(fresh) {
+          updated <- app_data()
+
+          # Translate ccc_session codes → labels
+          new_ccc <- fresh$ccc_review
+          if (!is.null(new_ccc) && nrow(new_ccc) > 0 &&
+              "ccc_session" %in% names(new_ccc) && !is.null(dd)) {
+            pf_str <- dd %>%
+              filter(field_name == "ccc_session") %>%
+              pull(select_choices_or_calculations)
+            if (length(pf_str) > 0 && !is.na(pf_str[1])) {
+              pm <- .parse_choices(pf_str[1])
+              new_ccc[["ccc_session"]] <- .translate_codes(new_ccc[["ccc_session"]], pm)
             }
-            updated <- app_data()
             updated$all_forms$ccc_review <- new_ccc
-            app_data(updated)
           }
+
+          # Translate prog_mile_period codes → labels
+          new_mile <- fresh$milestone_entry
+          if (!is.null(new_mile) && nrow(new_mile) > 0 &&
+              "prog_mile_period" %in% names(new_mile) && !is.null(dd)) {
+            pf_str <- dd %>%
+              filter(field_name == "prog_mile_period") %>%
+              pull(select_choices_or_calculations)
+            if (length(pf_str) > 0 && !is.na(pf_str[1])) {
+              pm <- .parse_choices(pf_str[1])
+              new_mile[["prog_mile_period"]] <-
+                .translate_codes(new_mile[["prog_mile_period"]], pm)
+            }
+            if (!"redcap_repeat_instrument" %in% names(new_mile) ||
+                all(is.na(new_mile$redcap_repeat_instrument)))
+              new_mile$redcap_repeat_instrument <- "milestone_entry"
+            updated$all_forms$milestone_entry <- new_mile
+          }
+
+          app_data(updated)
         }) %...!% (function(err) {
-          message("[Submit] ccc_review refresh failed: ", err$message)
+          message("[Submit] post-submit refresh failed: ", err$message)
         })
 
         show_list_view(TRUE)
@@ -2336,10 +2428,11 @@ create_server <- function(initial_data, server_state = NULL) {
     })
   })
 
-  # Save Milestone Edits
-  observeEvent(input$save_milestone_edits, {
+  # Save Milestone Edits — REMOVED: milestones now written in confirm_submit_ccc
+  # observeEvent(input$save_milestone_edits, {  # kept as comment for reference
+
+  if (FALSE) {
     rid <- selected_resident_id()
-    req(rid)
 
     # Get resident info for current period
     resident_info <- app_data()$residents %>%
@@ -2583,7 +2676,7 @@ create_server <- function(initial_data, server_state = NULL) {
         duration = 5
       )
     }
-  })
+  }  # end if(FALSE) — old save_milestone_edits block
 
   # View Plus/Delta Comments
   observeEvent(input$view_plus_delta, {

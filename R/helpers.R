@@ -124,6 +124,33 @@ get_competency_full_name <- function(competency) {
   }
 }
 
+#' Milestone competency → REDCap field mapping
+#'
+#' Returns a data frame with code, field, and domain columns for all 21
+#' program milestone subcompetencies. Used by both the milestone input UI
+#' and the unified CCC + milestone submit handler.
+#' @return data.frame with columns: code, field, domain
+mile_comp_fields <- function() {
+  data.frame(
+    code  = c("PC1","PC2","PC3","PC4","PC5","PC6",
+              "MK1","MK2","MK3",
+              "SBP1","SBP2","SBP3",
+              "PBL1","PBL2",
+              "PROF1","PROF2","PROF3","PROF4",
+              "ICS1","ICS2","ICS3"),
+    field = c("rep_pc1","rep_pc2","rep_pc3","rep_pc4","rep_pc5","rep_pc6",
+              "rep_mk1","rep_mk2","rep_mk3",
+              "rep_sbp1","rep_sbp2","rep_sbp3",
+              "rep_pbl1","rep_pbl2",
+              "rep_prof1","rep_prof2","rep_prof3","rep_prof4",
+              "rep_ics1","rep_ics2","rep_ics3"),
+    domain = c(rep("Patient Care", 6), rep("Medical Knowledge", 3),
+               rep("Systems-Based Practice", 3), rep("Practice-Based Learning", 2),
+               rep("Professionalism", 4), rep("Interpersonal & Communication", 3)),
+    stringsAsFactors = FALSE
+  )
+}
+
 #' Parse Data Dictionary Choices
 #'
 #' Parses the select_choices_or_calculations field from REDCap data dictionary
