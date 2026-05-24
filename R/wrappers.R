@@ -135,7 +135,14 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
       res$current_period
     )
 
-    ccc_complete <- nrow(ccc_data) > 0
+    # CCC is complete when the ILP field (ccc_ilp) is filled in —
+    # a record existing but with no ILP text is not yet complete.
+    ccc_complete <- if (nrow(ccc_data) > 0 && "ccc_ilp" %in% names(ccc_data)) {
+      !is.na(ccc_data$ccc_ilp[1]) &&
+        nzchar(trimws(as.character(ccc_data$ccc_ilp[1])))
+    } else {
+      FALSE
+    }
 
     # Determine PGY level from current period
     pgy_level <- if (!is.na(res$current_period)) {
