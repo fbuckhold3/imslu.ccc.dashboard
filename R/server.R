@@ -1547,6 +1547,23 @@ create_server <- function(initial_data, server_state = NULL) {
           )
         )
       ),
+
+      # Person Responsible — appears when follow-up issues OR concerns is Yes
+      conditionalPanel(
+        condition = "input.ccc_issues_yn == '1' || input.ccc_concern == '1'",
+        fluidRow(
+          column(width = 12,
+            gmed::gmed_card(
+              title = "Person Responsible",
+              textInput("ccc_fu_resp",
+                label = "Who is responsible for follow-up / addressing the concern?",
+                value = fld("ccc_fu_resp"),
+                width = "100%",
+                placeholder = "Name or role (e.g. Program Director, Coach, Resident)")
+            )
+          )
+        )
+      ),
       br(),
 
       # ── 8. Submit ────────────────────────────────────────────────────────────
@@ -2497,6 +2514,8 @@ create_server <- function(initial_data, server_state = NULL) {
             tags$hr(style = "margin: 4px 0;"))),
           mk_row("Follow-up Issues", if (inp("ccc_issues_yn", "0") == "1") inp("ccc_issues_follow_up") else "No"),
           mk_row("Concerns",    if (inp("ccc_concern", "0") == "1") "Yes" else "No"),
+          if (inp("ccc_issues_yn", "0") == "1" || inp("ccc_concern", "0") == "1")
+            mk_row("Person Responsible", inp("ccc_fu_resp")) else NULL,
           mk_row("Comments",    inp("ccc_comments")),
           mk_row("Competencies", sel_labels(competency_choices, input$ccc_competency)),
           mk_row("Actions",      sel_labels(action_choices,     input$ccc_action)),
@@ -2558,6 +2577,7 @@ create_server <- function(initial_data, server_state = NULL) {
         ccc_mile_notes       = if (!is.null(input$ccc_mile_notes))       as.character(input$ccc_mile_notes)       else "",
         ccc_issues_follow_up = if (!is.null(input$ccc_issues_follow_up)) as.character(input$ccc_issues_follow_up) else "",
         ccc_concern          = if (!is.null(input$ccc_concern))          as.character(input$ccc_concern)          else "0",
+        ccc_fu_resp          = if (!is.null(input$ccc_fu_resp))          as.character(input$ccc_fu_resp)          else "",
         ccc_comments         = if (!is.null(input$ccc_comments))         as.character(input$ccc_comments)         else "",
         ccc_review_complete  = "2",
         stringsAsFactors = FALSE
