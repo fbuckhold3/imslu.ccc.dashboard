@@ -507,13 +507,49 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
 
     # CCC Review uses ccc_session
     "ccc_review" = {
-      if ("ccc_session" %in% names(form_data)) {
-        form_data %>%
-          filter(redcap_repeat_instrument == "ccc_review") %>%
-          filter(!is.na(ccc_session), ccc_session == !!period_name)
+      # Period name → numeric code lookup (used as fallbacks below)
+      .ccc_period_codes <- c(
+        "Mid Intern" = "1", "End Intern" = "2",
+        "Mid PGY2"   = "3", "End PGY2"   = "4",
+        "Mid PGY3"   = "5", "Graduating" = "6",
+        "Entering Residency" = "7"
+      )
+      .period_code <- unname(.ccc_period_codes[period_name])
+      if (is.null(.period_code)) .period_code <- NA_character_
+
+      .base <- form_data %>% filter(redcap_repeat_instrument == "ccc_review")
+
+      if (!"ccc_session" %in% names(.base) || nrow(.base) == 0) {
+        .base
       } else {
-        form_data %>%
-          filter(redcap_repeat_instrument == "ccc_review")
+        # Try 1: translated label  (normal path — "Mid Intern", "Graduating", etc.)
+        .r <- .base %>%
+          filter(!is.na(ccc_session),
+                 as.character(ccc_session) == as.character(period_name))
+        if (nrow(.r) > 0) return(.r)
+
+        # Try 2: raw numeric code  (translation may have been skipped)
+        if (!is.na(.period_code)) {
+          .r <- .base %>%
+            filter(!is.na(ccc_session),
+                   as.character(ccc_session) == .period_code)
+          if (nrow(.r) > 0) return(.r)
+        }
+
+        # Try 3: blank/NA ccc_session + instance == period code
+        # (manually entered records or pre-fix submissions where ccc_session
+        #  was never set; instance = period_code since our submit handler
+        #  enforces that mapping)
+        if (!is.na(.period_code) &&
+            "redcap_repeat_instance" %in% names(.base)) {
+          .r <- .base %>%
+            filter(is.na(ccc_session) | !nzchar(trimws(as.character(ccc_session)))) %>%
+            filter(suppressWarnings(as.numeric(redcap_repeat_instance)) ==
+                   suppressWarnings(as.numeric(.period_code)))
+          if (nrow(.r) > 0) return(.r)
+        }
+
+        data.frame()
       }
     },
 
