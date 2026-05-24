@@ -1372,6 +1372,19 @@ create_server <- function(initial_data, server_state = NULL) {
       }
     }
 
+    # Translate coach code → display name
+    coach_display <- tryCatch({
+      raw_coach <- if ("coach" %in% names(resident_info) && !is.na(resident_info$coach))
+        as.character(resident_info$coach) else NULL
+      if (!is.null(raw_coach) && nzchar(raw_coach) && !is.null(app_data()$data_dict)) {
+        choices <- get_field_choices(app_data()$data_dict, "coach")
+        if (length(choices) > 0 && raw_coach %in% names(choices))
+          as.character(choices[raw_coach])
+        else
+          raw_coach
+      } else NULL
+    }, error = function(e) NULL)
+
     tagList(
       # ── 1. Resident header + Ad Hoc button ──────────────────────────────────
       fluidRow(
@@ -1379,7 +1392,7 @@ create_server <- function(initial_data, server_state = NULL) {
           gmed::gmed_resident_panel(
             resident_name = resident_info$full_name,
             level         = resident_info$current_period,
-            coach         = if ("coach_name" %in% names(resident_info)) resident_info$coach_name else NULL
+            coach         = coach_display
           )
         ),
         column(width = 2,
