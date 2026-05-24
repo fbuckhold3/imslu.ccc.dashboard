@@ -507,7 +507,7 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
 
     # CCC Review uses ccc_session
     "ccc_review" = {
-      # Period name → numeric code lookup (used as fallbacks below)
+      # Period name → numeric code lookup
       .ccc_period_codes <- c(
         "Mid Intern" = "1", "End Intern" = "2",
         "Mid PGY2"   = "3", "End PGY2"   = "4",
@@ -518,63 +518,64 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
       if (is.null(.period_code)) .period_code <- NA_character_
 
       .base <- form_data %>% filter(redcap_repeat_instrument == "ccc_review")
-
       if (nrow(.base) == 0) return(data.frame())
 
-      # Diagnostic: log what values we see
-      if ("ccc_session" %in% names(.base)) {
-        message(sprintf("[ccc_filter] rid=%s period='%s' code='%s' | session vals: %s | instances: %s",
-          record_id, period_name, .period_code,
-          paste(unique(as.character(.base$ccc_session)), collapse=","),
-          paste(unique(as.character(.base$redcap_repeat_instance)), collapse=",")))
-      }
-
       if (!"ccc_session" %in% names(.base)) {
-        # No session column at all — fall through to instance matching
+        # No session column — fall back to instance matching
         if (!is.na(.period_code) && "redcap_repeat_instance" %in% names(.base)) {
           .r <- .base %>%
             filter(suppressWarnings(as.numeric(redcap_repeat_instance)) ==
                    suppressWarnings(as.numeric(.period_code)))
-          if (nrow(.r) > 0) { message("[ccc_filter] no-session-col instance match"); return(.r) }
+          if (nrow(.r) > 0) return(.r)
         }
         return(.base)
       }
 
-      # Try 1: session matches period_name exactly (translation succeeded)
+      # Normalise REDCap session labels to the canonical period names used by
+      # calculate_pgy_and_period().  REDCap uses "Graduation" (not "Graduating")
+      # and "Intern Intro" (not "Entering Residency").
+      .label_norm <- c(
+        "Graduation"   = "Graduating",
+        "Intern Intro" = "Entering Residency",
+        "Intern Introduction" = "Entering Residency"
+      )
+      .sess <- as.character(.base$ccc_session)
+      .hits <- .sess %in% names(.label_norm) & !is.na(.sess)
+      if (any(.hits)) .sess[.hits] <- .label_norm[.sess[.hits]]
+      .base$ccc_session <- .sess
+
+      # Try 1: session matches period_name exactly (after normalisation)
       .r <- .base %>%
         filter(!is.na(ccc_session),
-               as.character(ccc_session) == as.character(period_name))
-      if (nrow(.r) > 0) { message("[ccc_filter] Tier1 hit"); return(.r) }
+               ccc_session == as.character(period_name))
+      if (nrow(.r) > 0) return(.r)
 
-      # Try 2: session matches raw numeric code (translation didn't run)
+      # Try 2: session still matches raw numeric code (translation never ran)
       if (!is.na(.period_code)) {
         .r <- .base %>%
-          filter(!is.na(ccc_session),
-                 as.character(ccc_session) == .period_code)
-        if (nrow(.r) > 0) { message("[ccc_filter] Tier2 hit"); return(.r) }
+          filter(!is.na(ccc_session), ccc_session == .period_code)
+        if (nrow(.r) > 0) return(.r)
       }
 
       # Try 3: blank/NA session + instance == period code
       if (!is.na(.period_code) && "redcap_repeat_instance" %in% names(.base)) {
         .r <- .base %>%
-          filter(is.na(ccc_session) | !nzchar(trimws(as.character(ccc_session)))) %>%
+          filter(is.na(ccc_session) | !nzchar(trimws(ccc_session))) %>%
           filter(suppressWarnings(as.numeric(redcap_repeat_instance)) ==
                  suppressWarnings(as.numeric(.period_code)))
-        if (nrow(.r) > 0) { message("[ccc_filter] Tier3 hit"); return(.r) }
+        if (nrow(.r) > 0) return(.r)
       }
 
-      # Try 4: instance == period_code regardless of session label
-      # Catches cases where translation gave an unexpected label (e.g. REDCap label
-      # differs from calculate_pgy_and_period). Only for scheduled instances (1-7).
+      # Try 4: instance == period_code regardless of session label (last resort)
+      # Only matches scheduled reviews (instances 1-7) to avoid ad-hoc conflicts.
       if (!is.na(.period_code) && "redcap_repeat_instance" %in% names(.base)) {
         .r <- .base %>%
           filter(suppressWarnings(as.numeric(redcap_repeat_instance)) ==
                  suppressWarnings(as.numeric(.period_code)),
                  suppressWarnings(as.numeric(redcap_repeat_instance)) <= 7L)
-        if (nrow(.r) > 0) { message("[ccc_filter] Tier4 hit (instance fallback)"); return(.r) }
+        if (nrow(.r) > 0) return(.r)
       }
 
-      message("[ccc_filter] NO match — returning empty")
       data.frame()
     },
 
