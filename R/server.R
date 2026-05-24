@@ -1580,6 +1580,7 @@ create_server <- function(initial_data, server_state = NULL) {
 
   # Past CCC Reviews Table — Date, Type, Notes (ccc_ilp + ccc_issues_follow_up combined)
   output$past_ccc_reviews_table <- DT::renderDT({
+    tryCatch({
     rid <- selected_resident_id()
     req(rid)
 
@@ -1658,10 +1659,16 @@ create_server <- function(initial_data, server_state = NULL) {
       rownames  = FALSE,
       selection = 'none'
     )
+    }, error = function(e) {
+      message("[past_ccc_reviews_table] error: ", e$message)
+      DT::datatable(data.frame(Date=character(), Type=character(), Notes=character()),
+                    options=list(dom='t'), rownames=FALSE)
+    })
   })
 
   # Action Data Table
   output$action_data_table <- DT::renderDT({
+    tryCatch({
     rid <- selected_resident_id()
     req(rid)
 
@@ -1690,6 +1697,13 @@ create_server <- function(initial_data, server_state = NULL) {
       rownames  = FALSE,
       selection = 'none'
     )
+    }, error = function(e) {
+      message("[action_data_table] error: ", e$message)
+      DT::datatable(data.frame(Date=character(), Session=character(), Type=character(),
+                               Notes=character(), Competency=character(),
+                               Action=character(), Status=character()),
+                    options=list(dom='t'), rownames=FALSE)
+    })
   })
 
   # Coach ILP Display
@@ -2616,22 +2630,30 @@ create_server <- function(initial_data, server_state = NULL) {
         )
 
         # ── Optimistic local update so the table reflects CCC complete immediately ──
-        # Add the submitted record (with translated ccc_session) to app_data()
-        # before the async refresh, so the list view renders correctly.
+        # Use only the columns the review table needs — avoids type conflicts from
+        # checkbox cols (REDCap returns integer 0/1; ccc_data has character "0"/"1").
         tryCatch({
-          submitted_labeled <- ccc_data
-          submitted_labeled$ccc_session <- resident_info$current_period  # label not code
+          opt_row <- data.frame(
+            record_id                = as.character(rid),
+            redcap_repeat_instrument = "ccc_review",
+            redcap_repeat_instance   = as.character(period_code),
+            ccc_session              = resident_info$current_period,  # canonical label
+            ccc_ilp                  = if (!is.null(input$ccc_ilp)) as.character(input$ccc_ilp) else "",
+            ccc_rev_type             = as.character(review_type),
+            ccc_date                 = as.character(Sys.Date()),
+            ccc_review_complete      = "2",
+            stringsAsFactors = FALSE
+          )
 
           current_review <- app_data()$all_forms$ccc_review
           if (!is.null(current_review) && nrow(current_review) > 0) {
-            # Remove any existing row for this record+period (handles update case)
             current_review <- current_review %>%
               filter(!(as.character(record_id) == as.character(rid) &
                        redcap_repeat_instrument == "ccc_review" &
                        as.character(redcap_repeat_instance) == as.character(period_code)))
-            new_review <- dplyr::bind_rows(current_review, submitted_labeled)
+            new_review <- dplyr::bind_rows(current_review, opt_row)
           } else {
-            new_review <- submitted_labeled
+            new_review <- opt_row
           }
           opt <- app_data()
           opt$all_forms$ccc_review <- new_review

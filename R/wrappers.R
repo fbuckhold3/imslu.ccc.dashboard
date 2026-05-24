@@ -72,6 +72,7 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
 
   # Check completion status for each resident
   purrr::map_dfr(1:nrow(residents_for_review), function(i) {
+    tryCatch({
     res <- residents_for_review[i, ]
 
     # Get coach and second reviewer names from residents data
@@ -172,6 +173,10 @@ get_ccc_review_table <- function(rdm_data, review_period = get_current_ccc_perio
       ccc_complete = ccc_complete,
       stringsAsFactors = FALSE
     )
+    }, error = function(e) {
+      message("[get_ccc_review_table] resident index ", i, " failed: ", e$message)
+      NULL  # map_dfr skips NULL rows
+    })
   })
 }
 
