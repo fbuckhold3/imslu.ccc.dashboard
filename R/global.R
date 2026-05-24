@@ -519,38 +519,63 @@ get_form_data_for_period <- function(all_forms, form_name, record_id, period_nam
 
       .base <- form_data %>% filter(redcap_repeat_instrument == "ccc_review")
 
-      if (!"ccc_session" %in% names(.base) || nrow(.base) == 0) {
-        .base
-      } else {
-        # Try 1: translated label  (normal path — "Mid Intern", "Graduating", etc.)
-        .r <- .base %>%
-          filter(!is.na(ccc_session),
-                 as.character(ccc_session) == as.character(period_name))
-        if (nrow(.r) > 0) return(.r)
+      if (nrow(.base) == 0) return(data.frame())
 
-        # Try 2: raw numeric code  (translation may have been skipped)
-        if (!is.na(.period_code)) {
-          .r <- .base %>%
-            filter(!is.na(ccc_session),
-                   as.character(ccc_session) == .period_code)
-          if (nrow(.r) > 0) return(.r)
-        }
+      # Diagnostic: log what values we see
+      if ("ccc_session" %in% names(.base)) {
+        message(sprintf("[ccc_filter] rid=%s period='%s' code='%s' | session vals: %s | instances: %s",
+          record_id, period_name, .period_code,
+          paste(unique(as.character(.base$ccc_session)), collapse=","),
+          paste(unique(as.character(.base$redcap_repeat_instance)), collapse=",")))
+      }
 
-        # Try 3: blank/NA ccc_session + instance == period code
-        # (manually entered records or pre-fix submissions where ccc_session
-        #  was never set; instance = period_code since our submit handler
-        #  enforces that mapping)
-        if (!is.na(.period_code) &&
-            "redcap_repeat_instance" %in% names(.base)) {
+      if (!"ccc_session" %in% names(.base)) {
+        # No session column at all — fall through to instance matching
+        if (!is.na(.period_code) && "redcap_repeat_instance" %in% names(.base)) {
           .r <- .base %>%
-            filter(is.na(ccc_session) | !nzchar(trimws(as.character(ccc_session)))) %>%
             filter(suppressWarnings(as.numeric(redcap_repeat_instance)) ==
                    suppressWarnings(as.numeric(.period_code)))
-          if (nrow(.r) > 0) return(.r)
+          if (nrow(.r) > 0) { message("[ccc_filter] no-session-col instance match"); return(.r) }
         }
-
-        data.frame()
+        return(.base)
       }
+
+      # Try 1: session matches period_name exactly (translation succeeded)
+      .r <- .base %>%
+        filter(!is.na(ccc_session),
+               as.character(ccc_session) == as.character(period_name))
+      if (nrow(.r) > 0) { message("[ccc_filter] Tier1 hit"); return(.r) }
+
+      # Try 2: session matches raw numeric code (translation didn't run)
+      if (!is.na(.period_code)) {
+        .r <- .base %>%
+          filter(!is.na(ccc_session),
+                 as.character(ccc_session) == .period_code)
+        if (nrow(.r) > 0) { message("[ccc_filter] Tier2 hit"); return(.r) }
+      }
+
+      # Try 3: blank/NA session + instance == period code
+      if (!is.na(.period_code) && "redcap_repeat_instance" %in% names(.base)) {
+        .r <- .base %>%
+          filter(is.na(ccc_session) | !nzchar(trimws(as.character(ccc_session)))) %>%
+          filter(suppressWarnings(as.numeric(redcap_repeat_instance)) ==
+                 suppressWarnings(as.numeric(.period_code)))
+        if (nrow(.r) > 0) { message("[ccc_filter] Tier3 hit"); return(.r) }
+      }
+
+      # Try 4: instance == period_code regardless of session label
+      # Catches cases where translation gave an unexpected label (e.g. REDCap label
+      # differs from calculate_pgy_and_period). Only for scheduled instances (1-7).
+      if (!is.na(.period_code) && "redcap_repeat_instance" %in% names(.base)) {
+        .r <- .base %>%
+          filter(suppressWarnings(as.numeric(redcap_repeat_instance)) ==
+                 suppressWarnings(as.numeric(.period_code)),
+                 suppressWarnings(as.numeric(redcap_repeat_instance)) <= 7L)
+        if (nrow(.r) > 0) { message("[ccc_filter] Tier4 hit (instance fallback)"); return(.r) }
+      }
+
+      message("[ccc_filter] NO match — returning empty")
+      data.frame()
     },
 
     # Default: no period filtering
