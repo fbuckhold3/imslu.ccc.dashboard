@@ -1395,22 +1395,11 @@ create_server <- function(initial_data, server_state = NULL) {
       # ── 2. Current Period Review Materials ───────────────────────────────────
       h4("Review Materials", style = "margin-top: 20px; margin-bottom: 12px;"),
       fluidRow(
-        # Left half: coach stacked on second
+        # Left half: past CCC reviews
         column(width = 6,
           gmed::gmed_card(
-            title = "Coach Review",
-            p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
-              "Coach review for current period"),
-            uiOutput("coach_review_summary"),
-            uiOutput("prev_period_coach_display")
-          ),
-          tags$br(),
-          gmed::gmed_card(
-            title = "Second Review",
-            p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
-              "Second reviewer for current period"),
-            uiOutput("second_review_summary"),
-            uiOutput("prev_period_ccc_display")
+            title = "Past CCC Reviews",
+            DT::DTOutput("past_ccc_reviews_table")
           )
         ),
         # Right half: action items
@@ -1556,6 +1545,88 @@ create_server <- function(initial_data, server_state = NULL) {
                "This will save the review to REDCap")
         )
       )
+    )
+  })
+
+  # Past CCC Reviews Table — Date, Type, Notes (ccc_ilp + ccc_issues_follow_up combined)
+  output$past_ccc_reviews_table <- DT::renderDT({
+    rid <- selected_resident_id()
+    req(rid)
+
+    ad       <- app_data()
+    ccc_all  <- ad$all_forms$ccc_review
+
+    empty_tbl <- data.frame(Date=character(), Type=character(),
+                            Notes=character(), stringsAsFactors=FALSE)
+
+    if (is.null(ccc_all) || nrow(ccc_all) == 0) {
+      return(DT::datatable(empty_tbl, options=list(dom='t', ordering=FALSE,
+                           searching=FALSE), rownames=FALSE))
+    }
+
+    past <- ccc_all %>%
+      filter(as.character(record_id) == as.character(rid),
+             redcap_repeat_instrument == "ccc_review")
+
+    if (nrow(past) == 0) {
+      return(DT::datatable(empty_tbl, options=list(dom='t', ordering=FALSE,
+                           searching=FALSE), rownames=FALSE))
+    }
+
+    # Translate ccc_rev_type code → label
+    type_label <- function(x) {
+      dplyr::case_when(
+        is.na(x)    ~ "Scheduled",
+        x == "2"    ~ "Interim",
+        x == "1"    ~ "Scheduled",
+        TRUE        ~ as.character(x)
+      )
+    }
+
+    # Combine ccc_ilp and ccc_issues_follow_up into a single Notes column
+    get_col <- function(df, col) {
+      if (col %in% names(df)) trimws(as.character(df[[col]])) else rep("", nrow(df))
+    }
+
+    ilp     <- get_col(past, "ccc_ilp")
+    issues  <- get_col(past, "ccc_issues_follow_up")
+    interim <- get_col(past, "ccc_interim")
+
+    notes <- mapply(function(i, f, it) {
+      parts <- c(
+        if (nzchar(i))  paste0("ILP: ", i)          else NULL,
+        if (nzchar(f))  paste0("Follow-up: ", f)    else NULL,
+        if (nzchar(it)) paste0("Interim: ", it)     else NULL
+      )
+      if (length(parts) == 0) "" else paste(parts, collapse=" | ")
+    }, ilp, issues, interim, SIMPLIFY=TRUE, USE.NAMES=FALSE)
+
+    result <- data.frame(
+      Date  = get_col(past, "ccc_date"),
+      Type  = type_label(get_col(past, "ccc_rev_type")),
+      Notes = notes,
+      stringsAsFactors = FALSE
+    )
+
+    # Sort newest first
+    result <- result[order(result$Date, decreasing=TRUE, na.last=TRUE), ]
+
+    DT::datatable(
+      result,
+      options = list(
+        pageLength = 5,
+        dom        = 'tp',
+        ordering   = FALSE,
+        searching  = FALSE,
+        scrollX    = TRUE,
+        columnDefs = list(
+          list(width="85px",  targets=0),   # Date
+          list(width="80px",  targets=1),   # Type
+          list(className="dt-wrap", targets=2)  # Notes — wraps
+        )
+      ),
+      rownames  = FALSE,
+      selection = 'none'
     )
   })
 
