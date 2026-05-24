@@ -962,8 +962,8 @@ create_server <- function(initial_data, server_state = NULL) {
         color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
       )
     }, error = function(e) {
-      warning("resident_review_table render error: ", e$message)
-      DT::datatable(data.frame(Error = "Could not load review table."))
+      message("[ResidentTable] render error: ", e$message)
+      DT::datatable(data.frame(Error = paste("Could not load review table:", e$message)))
     })
   })
 
@@ -1401,14 +1401,16 @@ create_server <- function(initial_data, server_state = NULL) {
             title = "Coach Review",
             p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
               "Coach review for current period"),
-            uiOutput("coach_review_summary")
+            uiOutput("coach_review_summary"),
+            uiOutput("prev_period_coach_display")
           ),
           tags$br(),
           gmed::gmed_card(
             title = "Second Review",
             p(class = "text-muted", style = "font-size:0.78rem; margin-bottom:6px;",
               "Second reviewer for current period"),
-            uiOutput("second_review_summary")
+            uiOutput("second_review_summary"),
+            uiOutput("prev_period_ccc_display")
           )
         ),
         # Right half: action items
@@ -1836,6 +1838,101 @@ create_server <- function(initial_data, server_state = NULL) {
     )
   })
 
+  # ── Previous period coach note (for Review Materials section) ───────────────
+  output$prev_period_coach_display <- renderUI({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+    if (nrow(resident_info) == 0) return(NULL)
+
+    period_num      <- get_period_number(resident_info$current_period)
+    prev_period_num <- if (!is.na(period_num) && period_num > 0) period_num - 1L else NA_integer_
+
+    if (is.na(prev_period_num)) {
+      return(p(class = "text-muted fst-italic", style = "font-size:0.82rem; margin:0;",
+               icon("info-circle"), " First review period — no prior coach data."))
+    }
+
+    prev_period_name <- get_period_name(prev_period_num)
+    prev_coach <- tryCatch(
+      get_form_data_for_period(app_data()$all_forms, "coach_rev", rid, prev_period_name),
+      error = function(e) data.frame()
+    )
+
+    if (nrow(prev_coach) == 0) {
+      return(p(class = "text-muted fst-italic", style = "font-size:0.82rem; margin:0;",
+               icon("info-circle"), sprintf(" No coach review recorded for %s.", prev_period_name)))
+    }
+
+    # Pull the most useful text fields
+    summary_text <- if ("coach_summary" %in% names(prev_coach) &&
+                        !is.na(prev_coach$coach_summary[1]) &&
+                        nzchar(trimws(prev_coach$coach_summary[1])))
+      prev_coach$coach_summary[1] else NULL
+    ilp_text <- if ("coach_ilp_final" %in% names(prev_coach) &&
+                    !is.na(prev_coach$coach_ilp_final[1]) &&
+                    nzchar(trimws(prev_coach$coach_ilp_final[1])))
+      prev_coach$coach_ilp_final[1] else NULL
+
+    if (is.null(summary_text) && is.null(ilp_text)) {
+      return(p(class = "text-muted fst-italic", style = "font-size:0.82rem; margin:0;",
+               icon("check"), sprintf(" Coach review completed (%s) — no text fields.", prev_period_name)))
+    }
+
+    div(
+      class = "alert alert-secondary",
+      style = "border-left:4px solid #6c757d; padding:8px 12px; margin-top:8px; margin-bottom:0;",
+      tags$small(class = "text-muted d-block",
+                 style = "font-size:0.76rem; text-transform:uppercase; letter-spacing:0.05em;",
+                 sprintf("Previous Coach Review — %s", prev_period_name)),
+      if (!is.null(summary_text))
+        p(style = "margin:4px 0 0; font-size:0.88em; line-height:1.5; white-space:pre-wrap;", summary_text),
+      if (!is.null(ilp_text) && is.null(summary_text))
+        p(style = "margin:4px 0 0; font-size:0.88em; line-height:1.5; white-space:pre-wrap;", ilp_text)
+    )
+  })
+
+  # ── Previous period CCC note (for Review Materials section) ─────────────────
+  output$prev_period_ccc_display <- renderUI({
+    rid <- selected_resident_id()
+    req(rid)
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+    if (nrow(resident_info) == 0) return(NULL)
+
+    period_num      <- get_period_number(resident_info$current_period)
+    prev_period_num <- if (!is.na(period_num) && period_num > 0) period_num - 1L else NA_integer_
+
+    if (is.na(prev_period_num)) return(NULL)
+
+    prev_period_name <- get_period_name(prev_period_num)
+    prev_ccc <- tryCatch(
+      get_form_data_for_period(app_data()$all_forms, "ccc_review", rid, prev_period_name),
+      error = function(e) data.frame()
+    )
+
+    if (nrow(prev_ccc) == 0 || !("ccc_ilp" %in% names(prev_ccc)) ||
+        is.na(prev_ccc$ccc_ilp[1]) || !nzchar(trimws(as.character(prev_ccc$ccc_ilp[1])))) {
+      return(p(class = "text-muted fst-italic", style = "font-size:0.82rem; margin:0; margin-top:8px;",
+               icon("info-circle"), sprintf(" No CCC ILP recorded for %s.", prev_period_name)))
+    }
+
+    div(
+      class = "alert alert-secondary",
+      style = "border-left:4px solid #6c757d; padding:8px 12px; margin-top:8px; margin-bottom:0;",
+      tags$small(class = "text-muted d-block",
+                 style = "font-size:0.76rem; text-transform:uppercase; letter-spacing:0.05em;",
+                 sprintf("Previous CCC ILP — %s", prev_period_name)),
+      p(style = "margin:4px 0 0; font-size:0.88em; line-height:1.5; white-space:pre-wrap;",
+        as.character(prev_ccc$ccc_ilp[1]))
+    )
+  })
+
   # Milestone Descriptions Table
   output$milestone_descriptions_table <- DT::renderDT({
     rid <- selected_resident_id()
@@ -1916,6 +2013,7 @@ create_server <- function(initial_data, server_state = NULL) {
         field     <- rows$field[i]
         full_name <- as.character(get_competency_full_name(code))
         cur_val   <- get_val(field)
+        img_file  <- paste0("milestones/", tolower(code), ".png")
         tags$tr(
           tags$td(
             style = "font-size:0.84rem; padding:2px 8px; vertical-align:middle; color:#333;",
@@ -1929,6 +2027,16 @@ create_server <- function(initial_data, server_state = NULL) {
               choices  = c("—" = "", as.character(1:9)),
               selected = cur_val,
               width    = "78px"
+            )
+          ),
+          tags$td(
+            style = "width:36px; padding:2px 4px; text-align:center; vertical-align:middle;",
+            tags$a(
+              href    = "#",
+              onclick = sprintf("showImage('%s'); return false;", img_file),
+              title   = paste("View", code, "milestone"),
+              style   = "color:#546e7a; font-size:0.95rem;",
+              HTML("&#128247;")   # 📷 camera emoji fallback; or use icon("image")
             )
           )
         )
@@ -2127,6 +2235,104 @@ create_server <- function(initial_data, server_state = NULL) {
     })
   })
 
+  # ── Milestone spider for confirmation modal ───────────────────────────────────
+  output$modal_mile_spider <- plotly::renderPlotly({
+    rid <- selected_resident_id()
+    if (is.null(rid)) return(plotly::plot_ly())
+
+    resident_info <- app_data()$residents %>%
+      filter(record_id == rid) %>%
+      slice(1)
+    if (nrow(resident_info) == 0) return(plotly::plot_ly())
+
+    cf <- mile_comp_fields()
+
+    # Existing milestone values for current period
+    existing <- tryCatch(
+      get_milestone_values_for_edit(app_data(), rid, resident_info$current_period),
+      error = function(e) data.frame()
+    )
+    get_existing <- function(field) {
+      if (nrow(existing) > 0 && "field_name" %in% names(existing)) {
+        idx <- which(existing$field_name == field)
+        if (length(idx) > 0 && !is.na(existing$value[idx[1]])) return(existing$value[idx[1]])
+      }
+      NA_real_
+    }
+
+    existing_vals <- vapply(cf$field, get_existing, numeric(1))
+
+    # New (form input) values — available when the milestone section is open
+    new_vals <- vapply(cf$field, function(f) {
+      v <- input[[paste0("mile_", f)]]
+      if (!is.null(v) && nzchar(v)) as.numeric(v) else NA_real_
+    }, numeric(1))
+
+    has_new     <- any(!is.na(new_vals))
+    has_existing <- any(!is.na(existing_vals))
+
+    if (!has_new && !has_existing) {
+      return(plotly::plot_ly(type = "scatterpolar") %>%
+        plotly::layout(
+          polar = list(radialaxis = list(visible = FALSE)),
+          annotations = list(list(text = "No milestone data", x = 0.5, y = 0.5,
+                                  showarrow = FALSE, xref = "paper", yref = "paper"))
+        ))
+    }
+
+    # Close polygon for radar
+    theta <- c(cf$code, cf$code[1])
+
+    traces <- list()
+    if (has_existing) {
+      r_ex <- c(existing_vals, existing_vals[1])
+      r_ex[is.na(r_ex)] <- 0
+      traces[[length(traces) + 1]] <- list(
+        type = "scatterpolar", mode = "lines+markers",
+        r = r_ex, theta = theta, fill = "toself", name = "Current",
+        fillcolor = "rgba(108,117,125,0.15)",
+        line = list(color = "#6c757d", width = 1.5),
+        marker = list(color = "#6c757d", size = 4)
+      )
+    }
+    if (has_new) {
+      # Merge: new value if entered, else existing
+      merged <- ifelse(!is.na(new_vals), new_vals, existing_vals)
+      r_new  <- c(merged, merged[1])
+      r_new[is.na(r_new)] <- 0
+      traces[[length(traces) + 1]] <- list(
+        type = "scatterpolar", mode = "lines+markers",
+        r = r_new, theta = theta, fill = "toself", name = "Updated",
+        fillcolor = "rgba(0,61,92,0.2)",
+        line = list(color = "#003d5c", width = 2),
+        marker = list(color = "#003d5c", size = 5)
+      )
+    }
+
+    p <- plotly::plot_ly()
+    for (tr in traces) {
+      p <- p %>% plotly::add_trace(
+        type = tr$type, mode = tr$mode,
+        r = tr$r, theta = tr$theta,
+        fill = tr$fill, name = tr$name,
+        fillcolor = tr$fillcolor,
+        line = tr$line, marker = tr$marker
+      )
+    }
+
+    p %>% plotly::layout(
+      polar = list(
+        radialaxis = list(
+          visible = TRUE, range = c(0, 9),
+          tickvals = c(1, 3, 5, 7, 9), tickfont = list(size = 9)
+        ),
+        angularaxis = list(tickfont = list(size = 9))
+      ),
+      legend = list(orientation = "h", x = 0, y = -0.1, font = list(size = 10)),
+      margin = list(l = 30, r = 30, t = 20, b = 20)
+    )
+  })
+
   # ── Submit CCC Review — Step 1: show confirmation modal ──────────────────────
   observeEvent(input$submit_ccc_review, {
     rid <- selected_resident_id()
@@ -2214,6 +2420,12 @@ create_server <- function(initial_data, server_state = NULL) {
         )
       ),
 
+      tags$hr(style = "margin:12px 0 8px;"),
+      tags$p(class = "text-muted mb-1",
+             style = "font-size:0.82rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em;",
+             icon("chart-area"), " Milestone Overview"),
+      plotly::plotlyOutput("modal_mile_spider", height = "280px"),
+
       footer = tagList(
         modalButton("Cancel"),
         actionButton("confirm_submit_ccc", "Submit to REDCap",
@@ -2298,6 +2510,31 @@ create_server <- function(initial_data, server_state = NULL) {
           paste("✓ CCC Review saved for", resident_info$full_name),
           type = "message", duration = 6
         )
+
+        # ── Optimistic local update so the table reflects CCC complete immediately ──
+        # Add the submitted record (with translated ccc_session) to app_data()
+        # before the async refresh, so the list view renders correctly.
+        tryCatch({
+          submitted_labeled <- ccc_data
+          submitted_labeled$ccc_session <- resident_info$current_period  # label not code
+
+          current_review <- app_data()$all_forms$ccc_review
+          if (!is.null(current_review) && nrow(current_review) > 0) {
+            # Remove any existing row for this record+period (handles update case)
+            current_review <- current_review %>%
+              filter(!(as.character(record_id) == as.character(rid) &
+                       redcap_repeat_instrument == "ccc_review" &
+                       as.character(redcap_repeat_instance) == as.character(period_code)))
+            new_review <- dplyr::bind_rows(current_review, submitted_labeled)
+          } else {
+            new_review <- submitted_labeled
+          }
+          opt <- app_data()
+          opt$all_forms$ccc_review <- new_review
+          app_data(opt)
+        }, error = function(e) {
+          message("[Submit] Optimistic update failed (non-fatal): ", e$message)
+        })
 
         # ── Write milestone_entry if ccc_mile == "1" and any values entered ───
         if (!is.null(input$ccc_mile) && input$ccc_mile == "1") {
