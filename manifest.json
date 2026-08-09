@@ -1075,24 +1075,24 @@
         "License": "MIT + file LICENSE",
         "Encoding": "UTF-8",
         "Roxygen": "list(markdown = TRUE)",
-        "RoxygenNote": "7.3.2",
         "Suggests": "knitr,\nrmarkdown,\ntestthat (>= 3.0.0)",
         "Config/testthat/edition": "3",
         "Imports": "dplyr, httr, readr, jsonlite, DT, reactable, htmltools,\nplotly, rlang, config, lubridate, tidyr, shinyjs, shiny, bslib,\ndata.table, tibble, purrr",
+        "Config/roxygen2/version": "8.0.0",
         "Author": "First Last [aut, cre]",
         "Maintainer": "First Last <first.last@example.com>",
-        "Built": "R 4.6.0; ; 2026-08-04 22:56:07 UTC; unix",
+        "Built": "R 4.6.0; ; 2026-08-09 14:43:05 UTC; unix",
         "RemoteType": "github",
         "RemoteHost": "api.github.com",
         "RemoteUsername": "fbuckhold3",
         "RemoteRepo": "gmed",
         "RemoteRef": "main",
-        "RemoteSha": "5cecc6ef32011bba87d1ed4de71a89d9dec19e8f",
+        "RemoteSha": "21cd27b5e18a958064ad2a64790ab6616acbffc9",
         "GithubHost": "api.github.com",
         "GithubRepo": "gmed",
         "GithubUsername": "fbuckhold3",
         "GithubRef": "main",
-        "GithubSHA1": "5cecc6ef32011bba87d1ed4de71a89d9dec19e8f"
+        "GithubSHA1": "21cd27b5e18a958064ad2a64790ab6616acbffc9"
       }
     },
     "gtable": {
