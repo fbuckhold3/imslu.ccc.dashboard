@@ -401,7 +401,7 @@ create_server <- function(initial_data, server_state = NULL) {
 
         div(
           style = paste(
-            "background: #003d5c; color: white;",
+            "background: var(--gmed-primary); color: white;",
             "padding: 18px 32px;",
             "display: flex; align-items: center; gap: 16px;",
             "margin: -24px -24px 40px -24px;"
@@ -410,7 +410,7 @@ create_server <- function(initial_data, server_state = NULL) {
             style = "background: rgba(255,255,255,0.15); font-size:0.68rem;
                      font-weight:700; letter-spacing:0.12em; padding: 4px 10px;
                      border-radius: 3px; white-space: nowrap;",
-            "SSM HEALTH \u00b7 SLUCARE"
+            "GME TOOLS"
           ),
           tags$h1(
             "CCC Dashboard",
@@ -435,8 +435,8 @@ create_server <- function(initial_data, server_state = NULL) {
                   class = "text-center mb-4",
                   tags$h2(
                     class = "mb-2",
-                    style = "color: #003d5c; font-weight: 700;",
-                    tags$i(class = "bi bi-shield-lock me-2", style = "color: #0066a1;"),
+                    style = "color: var(--gmed-primary); font-weight: 700;",
+                    tags$i(class = "bi bi-shield-lock me-2", style = "color: var(--gmed-secondary);"),
                     "CCC Dashboard Access"
                   ),
                   tags$p(
@@ -449,8 +449,8 @@ create_server <- function(initial_data, server_state = NULL) {
                 div(
                   style = paste(
                     "background: #f8fafc;",
-                    "border: 1px solid #dde5ed;",
-                    "border-left: 4px solid #0066a1;",
+                    "border: 1px solid var(--gmed-border);",
+                    "border-left: 4px solid var(--gmed-secondary);",
                     "border-radius: 4px;",
                     "padding: 16px 18px;",
                     "font-size: 0.82rem;",
@@ -487,7 +487,7 @@ create_server <- function(initial_data, server_state = NULL) {
                   ),
                   if (!is.null(auth_error())) {
                     div(
-                      style = "color: #dc3545; margin-top: 12px; font-size: 0.88rem;",
+                      style = "color: var(--gmed-error-red); margin-top: 12px; font-size: 0.88rem;",
                       tags$i(class = "bi bi-exclamation-circle me-1"),
                       auth_error()
                     )
