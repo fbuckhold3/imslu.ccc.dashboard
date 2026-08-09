@@ -15,14 +15,18 @@
   --body-bg:           #f0f3f8;
   --text-muted:        #5a6476;
 
-  /* Big-screen base size — drives all rem calculations */
-  font-size: 17px;
+  /* Big-screen base size — drives all rem calculations.
+     Matches gmed's own root size (see gmed-core.css) rather than
+     redeclaring a separate value that would silently win over it — a
+     :root rule beats an html rule on specificity regardless of load
+     order, so this used to make gmed's root font-size fix inert here. */
+  font-size: 118.75%;
 }
 
 /* --------------------------------------------------------------------------
    Page / body
    -------------------------------------------------------------------------- */
-html { font-size: 17px; }
+html { font-size: 118.75%; }
 
 body {
   background-color: var(--body-bg);

@@ -141,7 +141,7 @@ interim_section_ui <- function() {
       #tracker_ccc_review_table .dataTables_length label,
       #tracker_ccc_review_table .dataTables_info {
         font-size: 0.88rem;
-        color: #4a5568;
+        color: var(--gmed-text-secondary);
       }
     ")),
 
@@ -454,7 +454,7 @@ create_server <- function(initial_data, server_state = NULL) {
                     "border-radius: 4px;",
                     "padding: 16px 18px;",
                     "font-size: 0.82rem;",
-                    "color: #4a5568;",
+                    "color: var(--gmed-text-secondary);",
                     "line-height: 1.7;",
                     "margin-bottom: 28px;"
                   ),
@@ -1896,7 +1896,7 @@ create_server <- function(initial_data, server_state = NULL) {
     mk_row <- function(label, val) {
       if (is.null(val)) return(NULL)
       div(style = "margin-bottom:8px;",
-        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:#546e7a;",
+        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--gmed-text-secondary);",
                   label),
         p(style = "font-size:0.88rem; margin:2px 0 0 0; line-height:1.4;", val)
       )
@@ -1934,7 +1934,7 @@ create_server <- function(initial_data, server_state = NULL) {
     mk_row <- function(label, val) {
       if (is.null(val) || is.na(val) || nchar(trimws(val)) == 0) return(NULL)
       div(style = "margin-bottom:8px;",
-        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:#546e7a;",
+        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--gmed-text-secondary);",
                   label),
         p(style = "font-size:0.88rem; margin:2px 0 0 0; line-height:1.4;", val)
       )
@@ -2150,7 +2150,7 @@ create_server <- function(initial_data, server_state = NULL) {
               href    = "#",
               onclick = sprintf("showImage('%s'); return false;", img_file),
               title   = paste("View", code, "milestone"),
-              style   = "color:#546e7a; font-size:0.95rem;",
+              style   = "color:var(--gmed-text-secondary); font-size:0.95rem;",
               HTML("&#128247;")   # 📷 camera emoji fallback; or use icon("image")
             )
           )
@@ -4401,11 +4401,11 @@ create_server <- function(initial_data, server_state = NULL) {
         borderRadius = "20px",
         padding = "3px 8px") %>%
       DT::formatStyle("Notes",
-        fontSize = "0.95rem", color = "#4a5568") %>%
+        fontSize = "0.95rem", color = "var(--gmed-text-secondary)") %>%
       DT::formatStyle("Follow-up",
-        fontSize = "0.95rem", color = "#4a5568") %>%
+        fontSize = "0.95rem", color = "var(--gmed-text-secondary)") %>%
       DT::formatStyle("Person",
-        fontSize = "0.95rem", color = "#4a5568") %>%
+        fontSize = "0.95rem", color = "var(--gmed-text-secondary)") %>%
       DT::formatStyle("Competency",
         fontSize = "0.88rem", color = "#6f42c1", fontStyle = "italic") %>%
       DT::formatStyle("PGY",
