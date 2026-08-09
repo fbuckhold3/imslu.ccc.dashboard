@@ -68,7 +68,7 @@ completion_icon <- function(is_complete) {
     )
   } else {
     tags$span(
-      style = "color: #dc3545; font-size: 1.2em;",
+      style = "color: var(--gmed-error-red); font-size: 1.2em;",
       title = "Not completed",
       "\u25CF"  # Bullet point
     )

@@ -90,7 +90,7 @@ interim_section_ui <- function() {
 
       /* ── Header ── */
       #tracker_ccc_review_table table.dataTable thead th {
-        background: linear-gradient(135deg, #003d5c 0%, #0066a1 100%) !important;
+        background: linear-gradient(135deg, var(--gmed-primary) 0%, var(--gmed-secondary) 100%) !important;
         color: #ffffff !important;
         font-size: 0.85rem !important;
         font-weight: 700 !important;
@@ -149,7 +149,7 @@ interim_section_ui <- function() {
       title = "CCC Review Records",
       tags$p(
         style = "font-size:0.9rem; color:#6c757d; margin-bottom:14px;",
-        tags$i(class = "bi bi-cursor-fill me-1", style = "color:#0066a1;"),
+        tags$i(class = "bi bi-cursor-fill me-1", style = "color:var(--gmed-secondary);"),
         "Click a resident to log a new interim review."
       ),
       DT::DTOutput("tracker_ccc_review_table")
@@ -542,11 +542,11 @@ create_server <- function(initial_data, server_state = NULL) {
         ),
         tags$i(
           class = paste0("bi bi-", section_icon, " me-2"),
-          style = "color: #0066a1; font-size: 1.15rem;"
+          style = "color: var(--gmed-secondary); font-size: 1.15rem;"
         ),
         tags$span(
           section_label,
-          style = "font-weight: 700; font-size: 1.1rem; color: #003d5c;"
+          style = "font-weight: 700; font-size: 1.1rem; color: var(--gmed-primary);"
         )
       ),
 
@@ -951,15 +951,15 @@ create_server <- function(initial_data, server_state = NULL) {
     ) %>%
       DT::formatStyle(
         'Coach Status',
-        color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
+        color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc2626'))
       ) %>%
       DT::formatStyle(
         'Second Status',
-        color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
+        color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc2626'))
       ) %>%
       DT::formatStyle(
         'CCC',
-        color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc3545'))
+        color = DT::styleEqual(c("✓", "✗"), c('#28a745', '#dc2626'))
       )
     }, error = function(e) {
       message("[ResidentTable] render error: ", e$message)
@@ -1158,7 +1158,7 @@ create_server <- function(initial_data, server_state = NULL) {
       tags$hr(style = "margin: 12px 0 8px;"),
       div(
         class = "d-flex align-items-center gap-3 mb-2 flex-wrap",
-        tags$span("Select milestone:", style = "font-size:0.9rem; font-weight:600; color:#003d5c; white-space:nowrap;"),
+        tags$span("Select milestone:", style = "font-size:0.9rem; font-weight:600; color:var(--gmed-primary); white-space:nowrap;"),
         uiOutput("ccc_mile_selector")
       ),
       plotly::plotlyOutput("ccc_milestone_plot", height = "360px")
@@ -1254,8 +1254,8 @@ create_server <- function(initial_data, server_state = NULL) {
         type   = "scatter",
         mode   = "lines+markers",
         name   = sel_mile,
-        line   = list(color = "#0066a1", width = 2.5),
-        marker = list(color = "#0066a1", size = 9)
+        line   = list(color = "#0f8a94", width = 2.5),
+        marker = list(color = "#0f8a94", size = 9)
       ) %>%
       plotly::add_segments(
         x = period_order[1], xend = tail(period_order, 1),
@@ -2164,7 +2164,7 @@ create_server <- function(initial_data, server_state = NULL) {
             style   = "padding:6px 8px 2px; background:#f8f9fa; border-top:1px solid #dee2e6;",
             tags$span(
               style = "font-size:0.78rem; font-weight:700; text-transform:uppercase;
-                       letter-spacing:0.05em; color:#003d5c;",
+                       letter-spacing:0.05em; color:var(--gmed-primary);",
               dom
             )
           )
@@ -2419,8 +2419,8 @@ create_server <- function(initial_data, server_state = NULL) {
         type = "scatterpolar", mode = "lines+markers",
         r = r_new, theta = theta, fill = "toself", name = "Updated",
         fillcolor = "rgba(0,61,92,0.2)",
-        line = list(color = "#003d5c", width = 2),
-        marker = list(color = "#003d5c", size = 5)
+        line = list(color = "#0c5860", width = 2),
+        marker = list(color = "#0c5860", size = 5)
       )
     }
 
@@ -2478,7 +2478,7 @@ create_server <- function(initial_data, server_state = NULL) {
     mk_row <- function(label, val, empty_label = "—") {
       v <- if (!is.null(val) && nzchar(trimws(paste(val, collapse = "")))) val else empty_label
       tags$tr(
-        tags$th(style = "width:180px; font-weight:600; color:#003d5c; padding:6px 10px; vertical-align:top;", label),
+        tags$th(style = "width:180px; font-weight:600; color:var(--gmed-primary); padding:6px 10px; vertical-align:top;", label),
         tags$td(style = "padding:6px 10px;", v)
       )
     }
@@ -3984,7 +3984,7 @@ create_server <- function(initial_data, server_state = NULL) {
                                          c("#4a1d8e", "inherit"))
       ) %>%
       DT::formatStyle("Concern",
-        color      = DT::styleEqual(c("Yes", "—"), c("#dc3545", "#adb5bd")),
+        color      = DT::styleEqual(c("Yes", "—"), c("#dc2626", "#adb5bd")),
         fontWeight = DT::styleEqual(c("Yes", "—"), c("bold", "normal"))
       )
   })
@@ -4409,7 +4409,7 @@ create_server <- function(initial_data, server_state = NULL) {
       DT::formatStyle("Competency",
         fontSize = "0.88rem", color = "#6f42c1", fontStyle = "italic") %>%
       DT::formatStyle("PGY",
-        fontWeight = "600", fontSize = "0.95rem", color = "#0066a1")
+        fontWeight = "600", fontSize = "0.95rem", color = "var(--gmed-secondary)")
     }, error = function(e) {
       DT::datatable(data.frame(Error = paste("Table error:", e$message)))
     })
@@ -4579,7 +4579,7 @@ create_server <- function(initial_data, server_state = NULL) {
         style  = paste0(
           "display:flex; align-items:center; justify-content:center; gap:7px;",
           "padding:9px 16px; border-radius:7px; font-size:0.88rem; font-weight:600;",
-          "color:#0066a1; background:#ebf8ff; border:1.5px solid #90cdf4;",
+          "color:var(--gmed-secondary); background:#e6f4f5; border:1.5px solid #8ecdd3;",
           "text-decoration:none; white-space:nowrap; transition:background 0.15s;"
         ),
         tags$i(class = "bi bi-journal-medical", style = "font-size:1rem;"),
@@ -4592,9 +4592,9 @@ create_server <- function(initial_data, server_state = NULL) {
         style  = paste0(
           "display:flex; align-items:center; justify-content:center; gap:7px;",
           "padding:9px 16px; border-radius:7px; font-size:0.88rem; font-weight:700;",
-          "color:#ffffff; background:linear-gradient(135deg,#003d5c 0%,#0066a1 100%);",
+          "color:#ffffff; background:linear-gradient(135deg,var(--gmed-primary) 0%,var(--gmed-secondary) 100%);",
           "border:none; text-decoration:none; white-space:nowrap;",
-          "box-shadow:0 2px 8px rgba(0,102,161,0.35); transition:opacity 0.15s;"
+          "box-shadow:0 2px 8px rgba(15,138,148,0.35); transition:opacity 0.15s;"
         ),
         tags$i(class = "bi bi-person-video3", style = "font-size:1rem;"),
         paste0("Open ", res_name, "\u2019s Dashboard \u2197")
@@ -4635,7 +4635,7 @@ create_server <- function(initial_data, server_state = NULL) {
                 paste0("ITE Score \u00b7 PGY-", last_pgy)
               ),
               tags$div(
-                style = "font-size:1.5rem; font-weight:800; color:#003d5c; line-height:1.1;",
+                style = "font-size:1.5rem; font-weight:800; color:var(--gmed-primary); line-height:1.1;",
                 paste0(round(last_pct, 1), "%")
               ),
               tags$div(
@@ -5094,7 +5094,7 @@ create_server <- function(initial_data, server_state = NULL) {
       plotly::add_lines(
         x       = period_order,
         y       = rep(4, length(period_order)),
-        line    = list(color = "#dc3545", width = 2.5, dash = "dash"),
+        line    = list(color = "#dc2626", width = 2.5, dash = "dash"),
         name    = "Level 4 Target",
         inherit = FALSE,
         showlegend = TRUE
@@ -5205,7 +5205,7 @@ create_server <- function(initial_data, server_state = NULL) {
       "SBP1"  = "#7d3800", "SBP2"  = "#b55200", "SBP3"  = "#fd7e14",
       "PBL1"  = "#4a0e8f", "PBL2"  = "#7c3aed",
       "PROF1" = "#7c0012", "PROF2" = "#a80018", "PROF3" = "#cc001e",
-      "PROF4" = "#dc3545",
+      "PROF4" = "#dc2626",
       "ICS1"  = "#005e6d", "ICS2"  = "#00859a", "ICS3"  = "#0dcaf0"
     )
 
@@ -5283,7 +5283,7 @@ create_server <- function(initial_data, server_state = NULL) {
           y         = rep(4, length(x_prog)),
           type      = "scatter",
           mode      = "lines",
-          line      = list(color = "#dc3545", width = 2.5, dash = "dash"),
+          line      = list(color = "#dc2626", width = 2.5, dash = "dash"),
           name      = "Level 4 Target",
           showlegend = TRUE,
           hoverinfo  = "skip"
