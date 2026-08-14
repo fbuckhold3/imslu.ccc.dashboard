@@ -1,13 +1,19 @@
 # ui.R - CCC Dashboard
 # Thin shell — all content driven by server-side nav state.
 
-ui <- gmed::gmed_page(
-  title         = "CCC Dashboard",
-  theme_variant = "slucare",
-  base_font     = "Inter",
-  heading_font  = "Inter",
+ui <- roundsui::roundsui_page(
+  title        = "CCC Dashboard",
+  base_font    = "Inter",
+  heading_font = "Inter",
+  # include_shinyjs defaults TRUE and calls shinyjs::useShinyjs() itself -
+  # the app's own explicit call (previously here) would have double-inserted it.
 
-  shinyjs::useShinyjs(),
+  # gmed::load_gmed_styles() removed - every --gmed-*/.gmed-* reference in
+  # this app has been recolored onto roundsui tokens (see server.R,
+  # helpers.R, custom.css), so nothing needs it anymore. If a future change
+  # reintroduces a --gmed-* reference, it will silently lose its styling
+  # with no error - grep for "--gmed-" across R/ and www/ before assuming
+  # that's safe.
 
   tags$head(
     tags$link(
@@ -70,31 +76,13 @@ ui <- gmed::gmed_page(
           }
         } catch(e2) {}
       });
-    ")),
-
-    # Font sizes for .gmed-nav-block-icon/-label/-desc now live in
-    # gmed-themes.css (shared with imslu.ind.dash, which used this same
-    # tile layout). Only this app's own grid column count stays local.
-    tags$style(HTML("
-      .gmed-nav-grid {
-        display: grid !important;
-        grid-template-columns: repeat(3, 1fr) !important;
-        gap: 20px !important;
-      }
-      .gmed-nav-block {
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
-        min-height: 240px !important;
-        padding: 40px 28px !important;
-        gap: 0 !important;
-      }
-      @media (max-width: 992px) {
-        .gmed-nav-grid { grid-template-columns: repeat(2, 1fr) !important; }
-      }
     "))
   ),
+  # The .gmed-nav-grid/.gmed-nav-block column-count override that used to
+  # live here is gone - the home nav grid now renders via
+  # roundsui::roundsui_nav_blocks(), whose own .roundsui-nav-grid is
+  # already a genuinely responsive auto-fit grid (no manual breakpoint
+  # needed, unlike the fixed 3/2-column rules this replaces).
 
   # Image modal (used in resident detail view)
   tags$div(id = "imageModal", class = "image-modal",

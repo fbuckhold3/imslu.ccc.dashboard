@@ -41,7 +41,7 @@ body {
    App header
    -------------------------------------------------------------------------- */
 h2, .app-header h2 {
-  color: var(--gmed-secondary);
+  color: var(--roundsui-accent);
   font-weight: 700;
   font-size: 1.7rem;
   letter-spacing: -0.02em;
@@ -63,7 +63,7 @@ h2, .app-header h2 {
 }
 
 .card-header, .card > .card-header {
-  background: linear-gradient(135deg, var(--gmed-primary) 0%, var(--gmed-secondary) 100%) !important;
+  background: linear-gradient(135deg, var(--roundsui-accent) 0%, var(--roundsui-accent) 100%) !important;
   color: #fff !important;
   border-radius: calc(var(--card-radius) - 1px) calc(var(--card-radius) - 1px) 0 0 !important;
   padding: .9rem 1.3rem;
@@ -90,14 +90,14 @@ h2, .app-header h2 {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--gmed-primary) 0%, var(--gmed-secondary) 100%);
-  border-color: var(--gmed-secondary);
+  background: linear-gradient(135deg, var(--roundsui-accent) 0%, var(--roundsui-accent) 100%);
+  border-color: var(--roundsui-accent);
   box-shadow: 0 2px 6px rgba(15,138,148,.3);
 }
 
 .btn-primary:hover, .btn-primary:focus {
-  background: linear-gradient(135deg, var(--gmed-primary) 0%, var(--gmed-secondary) 100%);
-  border-color: var(--gmed-primary);
+  background: linear-gradient(135deg, var(--roundsui-accent) 0%, var(--roundsui-accent) 100%);
+  border-color: var(--roundsui-accent);
   box-shadow: 0 4px 12px rgba(15,138,148,.4);
   transform: translateY(-1px);
 }
@@ -153,8 +153,8 @@ h2, .app-header h2 {
 }
 
 .btn-outline-secondary:hover, .btn-outline-secondary.active {
-  background: var(--gmed-secondary);
-  border-color: var(--gmed-secondary);
+  background: var(--roundsui-accent);
+  border-color: var(--roundsui-accent);
   color: #fff;
 }
 
@@ -195,13 +195,13 @@ h2, .app-header h2 {
 }
 
 .nav-tabs .nav-link:hover {
-  color: var(--gmed-secondary);
+  color: var(--roundsui-accent);
   background: rgba(15, 138, 148, 0.08);
   border-color: transparent;
 }
 
 .nav-tabs .nav-link.active {
-  color: var(--gmed-secondary) !important;
+  color: var(--roundsui-accent) !important;
   font-weight: 700;
   font-size: 1.05rem;
   background: #fff;
@@ -225,7 +225,7 @@ h2, .app-header h2 {
 }
 
 .form-control:focus, .form-select:focus {
-  border-color: var(--gmed-secondary);
+  border-color: var(--roundsui-accent);
   box-shadow: 0 0 0 3px rgba(15,138,148,.14);
 }
 
@@ -266,7 +266,7 @@ textarea.form-control {
 }
 
 .dataTables_wrapper .dataTables_filter input:focus {
-  border-color: var(--gmed-secondary);
+  border-color: var(--roundsui-accent);
   box-shadow: 0 0 0 3px rgba(15,138,148,.1);
   outline: none;
 }
@@ -342,77 +342,10 @@ table.dataTable.no-footer {
   box-shadow: 0 10px 30px rgba(0,0,0,.22) !important;
 }
 
-/* --------------------------------------------------------------------------
-   Home screen nav blocks (self-contained so gmed CSS is not required)
-   -------------------------------------------------------------------------- */
-.gmed-page-header {
-  background: linear-gradient(135deg, var(--gmed-primary) 0%, var(--gmed-secondary) 100%);
-  color: white;
-  padding: 22px 28px;
-  border-radius: 10px;
-  margin-bottom: 24px;
-}
-.gmed-page-header h2 {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: white;
-}
-.gmed-page-header p {
-  margin: 5px 0 0;
-  opacity: 0.78;
-  font-size: 0.88rem;
-}
-
-.gmed-nav-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.gmed-nav-block {
-  background: #ffffff;
-  border: 1.5px solid #dce7f3;
-  border-left: 5px solid var(--gmed-secondary);
-  border-radius: 8px;
-  padding: 20px 18px 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  transition: box-shadow 0.18s, transform 0.15s, border-color 0.15s;
-  user-select: none;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-}
-.gmed-nav-block:hover {
-  box-shadow: 0 6px 22px rgba(15, 138, 148, 0.16);
-  transform: translateY(-2px);
-  border-color: var(--gmed-secondary);
-}
-.gmed-nav-block-icon {
-  color: var(--gmed-secondary);
-  font-size: 1.7rem;
-  flex-shrink: 0;
-  padding-top: 1px;
-}
-.gmed-nav-block-label {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--gmed-primary);
-  margin-bottom: 4px;
-}
-.gmed-nav-block-desc {
-  font-size: 0.8rem;
-  color: var(--gmed-text-secondary);
-  line-height: 1.4;
-}
-
-@media (max-width: 768px) {
-  .gmed-nav-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 480px) {
-  .gmed-nav-grid { grid-template-columns: 1fr; }
-}
+/* Home screen nav blocks/header used to live here as .gmed-page-header/
+   .gmed-nav-* rules - orphaned now that the home screen renders through
+   roundsui::roundsui_nav_blocks() (.roundsui-page-header/.roundsui-nav-*,
+   styled by roundsui-shell.css), removed rather than left dead. */
 
 /* --------------------------------------------------------------------------
    Modals
@@ -426,7 +359,7 @@ table.dataTable.no-footer {
 }
 
 .modal-header {
-  background: linear-gradient(135deg, var(--gmed-primary) 0%, var(--gmed-secondary) 100%);
+  background: linear-gradient(135deg, var(--roundsui-accent) 0%, var(--roundsui-accent) 100%);
   color: #fff;
   border-radius: 1rem 1rem 0 0;
   padding: 1.1rem 1.5rem;
@@ -596,7 +529,7 @@ h5 {
 }
 
 .adhoc-search-wrap .selectize-control.single .selectize-input.focus {
-  border-color: var(--gmed-secondary) !important;
+  border-color: var(--roundsui-accent) !important;
   box-shadow: 0 0 0 4px rgba(15,138,148,.14) !important;
   outline: none !important;
 }
@@ -608,7 +541,7 @@ h5 {
 
 .adhoc-search-wrap .selectize-dropdown {
   font-size: 1.05rem !important;
-  border: 2px solid var(--gmed-secondary) !important;
+  border: 2px solid var(--roundsui-accent) !important;
   border-top: none !important;
   border-radius: 0 0 0.65rem 0.65rem !important;
   box-shadow: 0 8px 24px rgba(0,0,0,.13) !important;
@@ -622,14 +555,14 @@ h5 {
 
 .adhoc-search-wrap .selectize-dropdown .option.active {
   background: rgba(15, 138, 148, 0.08) !important;
-  color: var(--gmed-secondary) !important;
+  color: var(--roundsui-accent) !important;
   font-weight: 600 !important;
 }
 
 .adhoc-search-wrap .selectize-control.single .selectize-input > .item {
   font-size: 1.1rem !important;
   font-weight: 700 !important;
-  color: var(--gmed-secondary) !important;
+  color: var(--roundsui-accent) !important;
 }
 
 /* --------------------------------------------------------------------------
