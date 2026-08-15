@@ -62,13 +62,13 @@ map_field_to_display <- function(field_name) {
 completion_icon <- function(is_complete) {
   if (is_complete) {
     tags$span(
-      style = "color: #28a745; font-size: 1.2em;",
+      style = "color: var(--roundsui-success); font-size: 1.2em;",
       title = "Completed",
       "\u2713"  # Check mark
     )
   } else {
     tags$span(
-      style = "color: var(--gmed-error-red); font-size: 1.2em;",
+      style = "color: var(--roundsui-danger); font-size: 1.2em;",
       title = "Not completed",
       "\u25CF"  # Bullet point
     )

@@ -15,7 +15,7 @@ semiannual_section_ui <- function() {
       fluidRow(
         column(
           width = 3,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Current Review Period",
             textOutput("current_period_display"),
             tags$hr(style = "margin: 15px 0;"),
@@ -23,11 +23,11 @@ semiannual_section_ui <- function() {
                          icon = icon("sync"), class = "btn-primary w-100")
           ),
           tags$br(),
-          gmed::gmed_card(title = "Review Progress", uiOutput("review_stats"))
+          roundsui::roundsui_card(title = "Review Progress", uiOutput("review_stats"))
         ),
         column(
           width = 9,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Filters",
             tags$div(
               tags$strong("Review Status:"),
@@ -47,7 +47,7 @@ semiannual_section_ui <- function() {
             )
           ),
           tags$br(),
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Residents for Review",
             DT::DTOutput("resident_review_table")
           )
@@ -90,7 +90,7 @@ interim_section_ui <- function() {
 
       /* ── Header ── */
       #tracker_ccc_review_table table.dataTable thead th {
-        background: linear-gradient(135deg, var(--gmed-primary) 0%, var(--gmed-secondary) 100%) !important;
+        background: linear-gradient(135deg, var(--roundsui-accent) 0%, var(--roundsui-accent) 100%) !important;
         color: #ffffff !important;
         font-size: 0.85rem !important;
         font-weight: 700 !important;
@@ -141,15 +141,15 @@ interim_section_ui <- function() {
       #tracker_ccc_review_table .dataTables_length label,
       #tracker_ccc_review_table .dataTables_info {
         font-size: 0.88rem;
-        color: var(--gmed-text-secondary);
+        color: var(--roundsui-ink-muted);
       }
     ")),
 
-    gmed::gmed_card(
+    roundsui::roundsui_card(
       title = "CCC Review Records",
       tags$p(
         style = "font-size:0.9rem; color:#6c757d; margin-bottom:14px;",
-        tags$i(class = "bi bi-cursor-fill me-1", style = "color:var(--gmed-secondary);"),
+        tags$i(class = "bi bi-cursor-fill me-1", style = "color:var(--roundsui-accent);"),
         "Click a resident to log a new interim review."
       ),
       DT::DTOutput("tracker_ccc_review_table")
@@ -168,7 +168,7 @@ milestones_section_ui <- function() {
       br(),
       fluidRow(
         column(width = 3,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Filters",
             selectInput("ms_category", "Competency Category:",
               choices  = c("All", "PC", "MK", "SBP", "PBL", "PROF", "ICS"),
@@ -188,7 +188,7 @@ milestones_section_ui <- function() {
           )
         ),
         column(width = 9,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Milestone Score Distribution by Review Period",
             uiOutput("ms_loading_indicator"),
             plotly::plotlyOutput("ms_program_plot", height = "500px")
@@ -203,7 +203,7 @@ milestones_section_ui <- function() {
       br(),
       fluidRow(
         column(width = 3,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Select Resident",
             selectizeInput("ms_resident", "Resident:", choices = NULL,
               options = list(placeholder = "Type to search...", maxOptions = 300)),
@@ -219,7 +219,7 @@ milestones_section_ui <- function() {
           )
         ),
         column(width = 9,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Individual Subcompetency Trajectories vs. Program",
             uiOutput("ms_ind_loading_indicator"),
             plotly::plotlyOutput("ms_individual_plot", height = "520px")
@@ -401,7 +401,7 @@ create_server <- function(initial_data, server_state = NULL) {
 
         div(
           style = paste(
-            "background: var(--gmed-primary); color: white;",
+            "background: var(--roundsui-accent); color: white;",
             "padding: 18px 32px;",
             "display: flex; align-items: center; gap: 16px;",
             "margin: -24px -24px 40px -24px;"
@@ -435,8 +435,8 @@ create_server <- function(initial_data, server_state = NULL) {
                   class = "text-center mb-4",
                   tags$h2(
                     class = "mb-2",
-                    style = "color: var(--gmed-primary); font-weight: 700;",
-                    tags$i(class = "bi bi-shield-lock me-2", style = "color: var(--gmed-secondary);"),
+                    style = "color: var(--roundsui-accent); font-weight: 700;",
+                    tags$i(class = "bi bi-shield-lock me-2", style = "color: var(--roundsui-accent);"),
                     "CCC Dashboard Access"
                   ),
                   tags$p(
@@ -449,12 +449,12 @@ create_server <- function(initial_data, server_state = NULL) {
                 div(
                   style = paste(
                     "background: #f8fafc;",
-                    "border: 1px solid var(--gmed-border);",
-                    "border-left: 4px solid var(--gmed-secondary);",
+                    "border: 1px solid var(--roundsui-border);",
+                    "border-left: 4px solid var(--roundsui-accent);",
                     "border-radius: 4px;",
                     "padding: 16px 18px;",
                     "font-size: 0.82rem;",
-                    "color: var(--gmed-text-secondary);",
+                    "color: var(--roundsui-ink-muted);",
                     "line-height: 1.7;",
                     "margin-bottom: 28px;"
                   ),
@@ -487,7 +487,7 @@ create_server <- function(initial_data, server_state = NULL) {
                   ),
                   if (!is.null(auth_error())) {
                     div(
-                      style = "color: var(--gmed-error-red); margin-top: 12px; font-size: 0.88rem;",
+                      style = "color: var(--roundsui-danger); margin-top: 12px; font-size: 0.88rem;",
                       tags$i(class = "bi bi-exclamation-circle me-1"),
                       auth_error()
                     )
@@ -502,51 +502,37 @@ create_server <- function(initial_data, server_state = NULL) {
 
     # ── HOME ───────────────────────────────────────────────────────────────────
     if (state == "home") {
-      return(tagList(
-        div(class = "gmed-page-header",
-          tags$h2("CCC Dashboard"),
-          tags$p("Clinical Competency Committee \u00b7 SLU Internal Medicine")
-        ),
-        div(class = "gmed-nav-grid",
-          lapply(ccc_nav_blocks, function(b) {
-            div(
-              class   = "gmed-nav-block",
-              onclick = sprintf(
-                "Shiny.setInputValue('nav_block', '%s', {priority: 'event'})", b$id
-              ),
-              div(class = "gmed-nav-block-icon",
-                  tags$i(class = paste0("bi bi-", b$icon))),
-              div(
-                div(class = "gmed-nav-block-label", b$label),
-                div(class = "gmed-nav-block-desc",  b$desc)
-              )
-            )
-          })
-        )
+      return(roundsui::roundsui_nav_blocks(
+        blocks   = ccc_nav_blocks,
+        title    = "CCC Dashboard",
+        subtitle = "Clinical Competency Committee \u00b7 SLU Internal Medicine",
+        input_id = "nav_block"
       ))
     }
 
     # ── SECTION ────────────────────────────────────────────────────────────────
     block_info    <- Filter(function(b) b$id == state, ccc_nav_blocks)
     section_label <- if (length(block_info)) block_info[[1]]$label else state
-    section_icon  <- if (length(block_info)) block_info[[1]]$icon  else "grid"
+    # ccc_nav_blocks$icon is Font Awesome now (see global.R) - "table-cells"
+    # is the fallback FA name for the old Bootstrap Icons "grid" default.
+    section_icon  <- if (length(block_info)) block_info[[1]]$icon  else "table-cells"
 
     tagList(
       div(
         class = "d-flex align-items-center mb-4 pb-3",
-        style = "border-bottom: 1px solid var(--ssm-border, #dde5ed);",
+        style = "border-bottom: 1px solid var(--roundsui-border, #dde5ed);",
         tags$button(
           class   = "btn btn-sm btn-outline-secondary me-3",
           onclick = "Shiny.setInputValue('nav_back', Math.random(), {priority: 'event'})",
           tags$i(class = "bi bi-arrow-left me-1"), "Home"
         ),
-        tags$i(
-          class = paste0("bi bi-", section_icon, " me-2"),
-          style = "color: var(--gmed-secondary); font-size: 1.15rem;"
+        span(
+          style = "color: var(--roundsui-accent); font-size: 1.15rem; margin-right: 8px;",
+          icon(section_icon)
         ),
         tags$span(
           section_label,
-          style = "font-weight: 700; font-size: 1.1rem; color: var(--gmed-primary);"
+          style = "font-weight: 700; font-size: 1.1rem; color: var(--roundsui-accent);"
         )
       ),
 
@@ -1158,7 +1144,7 @@ create_server <- function(initial_data, server_state = NULL) {
       tags$hr(style = "margin: 12px 0 8px;"),
       div(
         class = "d-flex align-items-center gap-3 mb-2 flex-wrap",
-        tags$span("Select milestone:", style = "font-size:0.9rem; font-weight:600; color:var(--gmed-primary); white-space:nowrap;"),
+        tags$span("Select milestone:", style = "font-size:0.9rem; font-weight:600; color:var(--roundsui-accent); white-space:nowrap;"),
         uiOutput("ccc_mile_selector")
       ),
       plotly::plotlyOutput("ccc_milestone_plot", height = "360px")
@@ -1389,7 +1375,7 @@ create_server <- function(initial_data, server_state = NULL) {
       # ── 1. Resident header + Ad Hoc button ──────────────────────────────────
       fluidRow(
         column(width = 10,
-          gmed::gmed_resident_panel(
+          roundsui::roundsui_resident_panel(
             resident_name = resident_info$full_name,
             level         = resident_info$current_period,
             coach         = coach_display
@@ -1410,14 +1396,14 @@ create_server <- function(initial_data, server_state = NULL) {
       fluidRow(
         # Left half: past CCC reviews
         column(width = 6,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Past CCC Reviews",
             DT::DTOutput("past_ccc_reviews_table")
           )
         ),
         # Right half: action items
         column(width = 6,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Previous Action Items",
             DT::DTOutput("action_data_table")
           )
@@ -1431,7 +1417,7 @@ create_server <- function(initial_data, server_state = NULL) {
         "Complete the following fields based on the committee's discussion and review of the resident's performance."),
       fluidRow(
         column(width = 12,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Individual Learning Plan",
             uiOutput("prev_ccc_ilp_display"),
             uiOutput("coach_ilp_display"),
@@ -1449,7 +1435,7 @@ create_server <- function(initial_data, server_state = NULL) {
       # ── 4. Additional Resident Data (toggle buttons, no re-render) ──────────
       fluidRow(
         column(width = 12,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Additional Resident Data",
             p(class = "text-muted", style = "font-size:0.88rem; margin-bottom: 10px;",
               "Toggle sections to view evaluation data, plus/delta feedback,",
@@ -1496,7 +1482,7 @@ create_server <- function(initial_data, server_state = NULL) {
           plotly::plotlyOutput("plot_self_spider", height = "380px")
         ),
         column(width = 6,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Milestone Descriptions",
             p(class = "text-muted", style = "font-size: 0.9em;",
               "Descriptions provided for specific competencies during this period."),
@@ -1509,7 +1495,7 @@ create_server <- function(initial_data, server_state = NULL) {
       # ── 6. Milestone Discussion (conditional edit table inside) ──────────────
       fluidRow(
         column(width = 12,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Milestone Discussion",
             radioButtons("ccc_mile", "Any changes to milestones?",
               choices  = c("No" = "0", "Yes" = "1"),
@@ -1523,7 +1509,7 @@ create_server <- function(initial_data, server_state = NULL) {
       # ── 7. Follow-up | Concerns side by side ─────────────────────────────────
       fluidRow(
         column(width = 6,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Follow-up Issues",
             radioButtons("ccc_issues_yn", "Any Follow-up Issues?",
               choices = c("No" = "0", "Yes" = "1"),
@@ -1538,7 +1524,7 @@ create_server <- function(initial_data, server_state = NULL) {
           )
         ),
         column(width = 6,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Concerns",
             radioButtons("ccc_concern", "Any Concerns?",
               choices = c("No" = "0", "Yes" = "1"),
@@ -1553,7 +1539,7 @@ create_server <- function(initial_data, server_state = NULL) {
         condition = "input.ccc_issues_yn == '1' || input.ccc_concern == '1'",
         fluidRow(
           column(width = 12,
-            gmed::gmed_card(
+            roundsui::roundsui_card(
               title = "Person Responsible",
               textInput("ccc_fu_resp",
                 label = "Who is responsible for follow-up / addressing the concern?",
@@ -1792,7 +1778,7 @@ create_server <- function(initial_data, server_state = NULL) {
         placeholder = "Enter notes about milestone discussion..."
       ),
       br(),
-      gmed::gmed_card(
+      roundsui::roundsui_card(
         title = "Update Program Milestones",
         p(class = "text-muted", style = "font-size: 0.9em;",
           "Select the updated rating (1–9) for each subcompetency. ",
@@ -1896,7 +1882,7 @@ create_server <- function(initial_data, server_state = NULL) {
     mk_row <- function(label, val) {
       if (is.null(val)) return(NULL)
       div(style = "margin-bottom:8px;",
-        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--gmed-text-secondary);",
+        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--roundsui-ink-muted);",
                   label),
         p(style = "font-size:0.88rem; margin:2px 0 0 0; line-height:1.4;", val)
       )
@@ -1934,7 +1920,7 @@ create_server <- function(initial_data, server_state = NULL) {
     mk_row <- function(label, val) {
       if (is.null(val) || is.na(val) || nchar(trimws(val)) == 0) return(NULL)
       div(style = "margin-bottom:8px;",
-        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--gmed-text-secondary);",
+        tags$span(class = "fw-semibold", style = "font-size:0.8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--roundsui-ink-muted);",
                   label),
         p(style = "font-size:0.88rem; margin:2px 0 0 0; line-height:1.4;", val)
       )
@@ -2150,7 +2136,7 @@ create_server <- function(initial_data, server_state = NULL) {
               href    = "#",
               onclick = sprintf("showImage('%s'); return false;", img_file),
               title   = paste("View", code, "milestone"),
-              style   = "color:var(--gmed-text-secondary); font-size:0.95rem;",
+              style   = "color:var(--roundsui-ink-muted); font-size:0.95rem;",
               HTML("&#128247;")   # 📷 camera emoji fallback; or use icon("image")
             )
           )
@@ -2164,7 +2150,7 @@ create_server <- function(initial_data, server_state = NULL) {
             style   = "padding:6px 8px 2px; background:#f8f9fa; border-top:1px solid #dee2e6;",
             tags$span(
               style = "font-size:0.78rem; font-weight:700; text-transform:uppercase;
-                       letter-spacing:0.05em; color:var(--gmed-primary);",
+                       letter-spacing:0.05em; color:var(--roundsui-accent);",
               dom
             )
           )
@@ -2478,7 +2464,7 @@ create_server <- function(initial_data, server_state = NULL) {
     mk_row <- function(label, val, empty_label = "—") {
       v <- if (!is.null(val) && nzchar(trimws(paste(val, collapse = "")))) val else empty_label
       tags$tr(
-        tags$th(style = "width:180px; font-weight:600; color:var(--gmed-primary); padding:6px 10px; vertical-align:top;", label),
+        tags$th(style = "width:180px; font-weight:600; color:var(--roundsui-accent); padding:6px 10px; vertical-align:top;", label),
         tags$td(style = "padding:6px 10px;", v)
       )
     }
@@ -3041,89 +3027,6 @@ create_server <- function(initial_data, server_state = NULL) {
     }
   }  # end if(FALSE) — old save_milestone_edits block
 
-  # View Plus/Delta Comments
-  observeEvent(input$view_plus_delta, {
-    rid <- selected_resident_id()
-    req(rid)
-
-    resident_info <- app_data()$residents %>%
-      filter(record_id == rid) %>%
-      slice(1)
-
-    # Get plus/delta comments from assessment data for current period
-    assessment_data <- if ("assessment" %in% names(app_data()$all_forms)) {
-      all_assessments <- app_data()$all_forms$assessment %>%
-        filter(record_id == rid)
-
-      # Try to filter by period if the field exists
-      if ("ass_period" %in% names(all_assessments)) {
-        all_assessments %>%
-          filter(!is.na(ass_period), ass_period == resident_info$current_period)
-      } else if ("assessment_period" %in% names(all_assessments)) {
-        all_assessments %>%
-          filter(!is.na(assessment_period), assessment_period == resident_info$current_period)
-      } else {
-        # If no period field, return all assessments for this resident
-        all_assessments
-      }
-    } else {
-      data.frame()
-    }
-
-    plus_delta_content <- if (nrow(assessment_data) > 0) {
-      # Check if gmed has plus_delta_table function
-      tryCatch({
-        if (exists("create_plus_delta_table", where = "package:gmed", mode = "function")) {
-          gmed::create_plus_delta_table(
-            assessment_data = assessment_data,
-            resident_id = rid,
-            period = resident_info$current_period
-          )
-        } else {
-          # Fallback: display raw plus/delta fields
-          plus_cols <- grep("^(plus|delta)_", names(assessment_data), value = TRUE)
-          if (length(plus_cols) > 0) {
-            content_list <- list()
-            for (col in plus_cols) {
-              # Collect all non-empty values for this column across all assessments
-              values <- assessment_data[[col]][!is.na(assessment_data[[col]]) & nchar(trimws(assessment_data[[col]])) > 0]
-              if (length(values) > 0) {
-                content_list <- c(content_list, list(
-                  tags$div(
-                    tags$strong(gsub("_", " ", tools::toTitleCase(col)), ":"),
-                    tags$ul(
-                      lapply(values, function(v) tags$li(v))
-                    )
-                  ),
-                  tags$hr()
-                ))
-              }
-            }
-            if (length(content_list) > 0) {
-              do.call(tagList, content_list)
-            } else {
-              tags$p("No plus/delta comments available for this period.")
-            }
-          } else {
-            tags$p("No plus/delta comments available for this period.")
-          }
-        }
-      }, error = function(e) {
-        tags$p("Error loading plus/delta comments: ", e$message)
-      })
-    } else {
-      tags$p("No assessment data available for this period.")
-    }
-
-    showModal(modalDialog(
-      title = paste("Plus/Delta Comments -", resident_info$full_name, "-", resident_info$current_period),
-      plus_delta_content,
-      size = "l",
-      easyClose = TRUE,
-      footer = modalButton("Close")
-    ))
-  })
-
   # View Current ILP Goals
   observeEvent(input$view_ilp_goals, {
     rid <- selected_resident_id()
@@ -3299,7 +3202,7 @@ create_server <- function(initial_data, server_state = NULL) {
 
     tagList(
       # Resident info header
-      gmed::gmed_resident_panel(
+      roundsui::roundsui_resident_panel(
         resident_name = resident_info$full_name,
         level         = current_period,
         coach         = if ("type" %in% names(resident_info)) paste0("Type: ", resident_info$type) else NULL
@@ -3311,13 +3214,13 @@ create_server <- function(initial_data, server_state = NULL) {
              "Showing the latest available record regardless of review period."),
       fluidRow(
         column(width = 4,
-          gmed::gmed_card(title = "Program Milestones",  milestone_btn("adhoc_prog_btn",  prog))
+          roundsui::roundsui_card(title = "Program Milestones",  milestone_btn("adhoc_prog_btn",  prog))
         ),
         column(width = 4,
-          gmed::gmed_card(title = "Self-Evaluation",     milestone_btn("adhoc_self_btn",  self))
+          roundsui::roundsui_card(title = "Self-Evaluation",     milestone_btn("adhoc_self_btn",  self))
         ),
         column(width = 4,
-          gmed::gmed_card(title = "ACGME Milestones",    milestone_btn("adhoc_acgme_btn", acgme))
+          roundsui::roundsui_card(title = "ACGME Milestones",    milestone_btn("adhoc_acgme_btn", acgme))
         )
       ),
 
@@ -3325,7 +3228,7 @@ create_server <- function(initial_data, server_state = NULL) {
       fluidRow(
         # Left — Coach Summary (always shown)
         column(width = 6,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = paste0("Coach Summary",
                            if (nchar(ctx$coach_period) > 0)
                              paste0(" (", ctx$coach_period, ")") else ""),
@@ -3339,7 +3242,7 @@ create_server <- function(initial_data, server_state = NULL) {
         ),
         # Right — Prior CCC context
         column(width = 6,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Prior CCC Notes",
             if (has_any_context)
               context_table
@@ -3354,7 +3257,7 @@ create_server <- function(initial_data, server_state = NULL) {
       h4("Ad Hoc Review Form", style = "margin-top: 30px;"),
 
       # Previous action items
-      gmed::gmed_card(
+      roundsui::roundsui_card(
         title = "Previous Action Items",
         DT::DTOutput("adhoc_action_data_table")
       ),
@@ -3364,7 +3267,7 @@ create_server <- function(initial_data, server_state = NULL) {
       fluidRow(
         # Left col — two text boxes stacked
         column(width = 8,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Review Notes",
             textAreaInput(
               "adhoc_ccc_interim",
@@ -3388,7 +3291,7 @@ create_server <- function(initial_data, server_state = NULL) {
 
         # Right col — concern checkboxes, always visible
         column(width = 4,
-          gmed::gmed_card(
+          roundsui::roundsui_card(
             title = "Concerns",
             tags$p(
               class = "text-muted",
@@ -4401,15 +4304,15 @@ create_server <- function(initial_data, server_state = NULL) {
         borderRadius = "20px",
         padding = "3px 8px") %>%
       DT::formatStyle("Notes",
-        fontSize = "0.95rem", color = "var(--gmed-text-secondary)") %>%
+        fontSize = "0.95rem", color = "var(--roundsui-ink-muted)") %>%
       DT::formatStyle("Follow-up",
-        fontSize = "0.95rem", color = "var(--gmed-text-secondary)") %>%
+        fontSize = "0.95rem", color = "var(--roundsui-ink-muted)") %>%
       DT::formatStyle("Person",
-        fontSize = "0.95rem", color = "var(--gmed-text-secondary)") %>%
+        fontSize = "0.95rem", color = "var(--roundsui-ink-muted)") %>%
       DT::formatStyle("Competency",
         fontSize = "0.88rem", color = "#6f42c1", fontStyle = "italic") %>%
       DT::formatStyle("PGY",
-        fontWeight = "600", fontSize = "0.95rem", color = "var(--gmed-secondary)")
+        fontWeight = "600", fontSize = "0.95rem", color = "var(--roundsui-accent)")
     }, error = function(e) {
       DT::datatable(data.frame(Error = paste("Table error:", e$message)))
     })
@@ -4579,7 +4482,7 @@ create_server <- function(initial_data, server_state = NULL) {
         style  = paste0(
           "display:flex; align-items:center; justify-content:center; gap:7px;",
           "padding:9px 16px; border-radius:7px; font-size:0.88rem; font-weight:600;",
-          "color:var(--gmed-secondary); background:#e6f4f5; border:1.5px solid #8ecdd3;",
+          "color:var(--roundsui-accent); background:#e6f4f5; border:1.5px solid #8ecdd3;",
           "text-decoration:none; white-space:nowrap; transition:background 0.15s;"
         ),
         tags$i(class = "bi bi-journal-medical", style = "font-size:1rem;"),
@@ -4592,7 +4495,7 @@ create_server <- function(initial_data, server_state = NULL) {
         style  = paste0(
           "display:flex; align-items:center; justify-content:center; gap:7px;",
           "padding:9px 16px; border-radius:7px; font-size:0.88rem; font-weight:700;",
-          "color:#ffffff; background:linear-gradient(135deg,var(--gmed-primary) 0%,var(--gmed-secondary) 100%);",
+          "color:#ffffff; background:linear-gradient(135deg,var(--roundsui-accent) 0%,var(--roundsui-accent) 100%);",
           "border:none; text-decoration:none; white-space:nowrap;",
           "box-shadow:0 2px 8px rgba(15,138,148,0.35); transition:opacity 0.15s;"
         ),
@@ -4635,7 +4538,7 @@ create_server <- function(initial_data, server_state = NULL) {
                 paste0("ITE Score \u00b7 PGY-", last_pgy)
               ),
               tags$div(
-                style = "font-size:1.5rem; font-weight:800; color:var(--gmed-primary); line-height:1.1;",
+                style = "font-size:1.5rem; font-weight:800; color:var(--roundsui-accent); line-height:1.1;",
                 paste0(round(last_pct, 1), "%")
               ),
               tags$div(

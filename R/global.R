@@ -791,23 +791,29 @@ load_ccc_phase1 <- function(
 # NAVIGATION BLOCKS
 # ==============================================================================
 
+# Icon names are Font Awesome (verified against the bundled 6.5.2 set via
+# the fontawesome R package's icon table, not guessed - a guessed FA name
+# renders as an invisible glyph with zero error, a real bug already hit
+# once building roundsui itself). Previously Bootstrap Icon names, back
+# when this list only fed the hand-rolled home nav grid directly; now also
+# consumed by roundsui::roundsui_nav_blocks(), which standardizes on FA.
 ccc_nav_blocks <- list(
   list(
     id    = "semiannual",
     label = "Semi-Annual Reviews",
-    icon  = "calendar2-check-fill",
+    icon  = "calendar-check",
     desc  = "Review table, filters & resident detail"
   ),
   list(
     id    = "interim",
     label = "Interim Reviews",
-    icon  = "clipboard2-pulse-fill",
+    icon  = "clipboard-list",
     desc  = "Ad hoc discussions & follow-up tracking"
   ),
   list(
     id    = "milestones",
     label = "Milestone Overview",
-    icon  = "graph-up-arrow",
+    icon  = "chart-line",
     desc  = "Program trends & individual trajectories"
   )
 )
